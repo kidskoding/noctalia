@@ -279,7 +279,11 @@ void ControlCenterPanel::create() {
             .out = &m_closeButton,
             .glyph = "close",
             .onClick = [] { PanelManager::instance().close(); },
-            .configure = [scale](Button& button) { panel_button_style::configureHeaderIconButton(button, scale); },
+            .configure =
+                [scale](Button& button) {
+                  panel_button_style::configureHeaderIconButton(button, scale);
+                  button.setVariant(ButtonVariant::Destructive);
+                },
         })
     );
   }

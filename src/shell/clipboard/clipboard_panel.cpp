@@ -733,7 +733,7 @@ void ClipboardPanel::create() {
       })
   );
   if (Style::closeButtonsEnabled()) {
-    previewActions->addChild(makeCompactIconButton(&m_closeButton, "close", ButtonVariant::Default, scale, [] {
+    previewActions->addChild(makeCompactIconButton(&m_closeButton, "close", ButtonVariant::Destructive, scale, [] {
       PanelManager::instance().close();
     }));
   }

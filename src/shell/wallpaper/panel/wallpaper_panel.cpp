@@ -615,6 +615,7 @@ void WallpaperPanel::create() {
             .out = &m_closeButton,
             .glyph = "close",
             .glyphSize = Style::fontSizeBody * scale,
+            .variant = ButtonVariant::Destructive,
             .tooltip = i18n::tr("wallpaper.panel.close"),
             .minWidth = Style::controlHeightSm * scale,
             .minHeight = Style::controlHeightSm * scale,
