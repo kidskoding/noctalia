@@ -148,7 +148,9 @@ void BluetoothWidget::syncState(Renderer& renderer) {
 
   m_glyph->setGlyph(glyphForState(s, numConnected));
   m_glyph->setGlyphSize(Style::baseGlyphSize * m_contentScale);
-  m_glyph->setColor(widgetIconColorOr(colorSpecFromRole(ColorRole::OnSurface)));
+  m_glyph->setColor(
+      s.powered ? widgetIconColorOr(colorSpecFromRole(ColorRole::OnSurface)) : colorSpecFromRole(ColorRole::Error)
+  );
   m_glyph->measure(renderer);
 
   if (m_label != nullptr) {
