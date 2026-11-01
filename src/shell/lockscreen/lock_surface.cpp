@@ -16,6 +16,7 @@
 #include "shell/lockscreen/lockscreen_login_box.h"
 #include "shell/lockscreen/lockscreen_session_actions.h"
 #include "shell/lockscreen/lockscreen_widgets_host.h"
+#include "shell/profile/avatar_path.h"
 #include "shell/session/session_action_meta.h"
 #include "shell/session/session_action_runner.h"
 #include "system/weather_service.h"
@@ -53,6 +54,7 @@ namespace {
 
   constexpr float kMediaArtSize = lockscreen_login_box::kRegularMediaArtSize;
   constexpr float kWeatherGlyphSize = 28.0F;
+  constexpr float kHeaderAvatarSize = 36.0F;
   constexpr float kForecastGlyphSize = lockscreen_login_box::kRegularForecastGlyphSize;
   constexpr float kLayoutChipMaxWidth = 96.0F;
   constexpr int kForecastDayCountPaired = 3;
@@ -383,6 +385,26 @@ LockSurface::LockSurface(WaylandConnection& connection, ConfigService* config) :
           .textAlign = TextAlign::Start,
       })
   );
+  m_weatherCurrent->addChild(ui::column({
+      .out = &m_headerUser,
+      .align = FlexAlign::Center,
+      .gap = Style::spaceXs,
+      .visible = false,
+      .participatesInLayout = false,
+  }, ui::image({
+      .out = &m_headerUserAvatar,
+      .fit = ImageFit::Cover,
+      .radius = kHeaderAvatarSize * 0.5F,
+      .width = kHeaderAvatarSize,
+      .height = kHeaderAvatarSize,
+  }), ui::label({
+      .out = &m_headerUserName,
+      .fontSize = Style::fontSizeBody,
+      .fontWeight = FontWeight::Bold,
+      .color = colorSpecFromRole(ColorRole::OnSurface),
+      .maxLines = 1,
+      .textAlign = TextAlign::Center,
+  })));
   m_weatherCurrent->addChild(ui::row({
       .out = &m_loginBatteryRow,
       .align = FlexAlign::Center,
@@ -1625,7 +1647,8 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
   }
 
   const bool structuredHeader = regular && loginStyle.showClock && !showMedia;
-  const float headerWidth = std::min(contentWidth, 460.0F * contentScale);
+  const bool showHeaderUser = structuredHeader && loginStyle.showUser;
+  const float headerWidth = std::min(contentWidth, (showHeaderUser ? 620.0F : 460.0F) * contentScale);
   if (m_weatherCurrent != nullptr) {
     m_loginClockRow->setParticipatesInLayout(!structuredHeader);
     m_loginBatteryRow->setParticipatesInLayout(!structuredHeader);
@@ -1639,8 +1662,12 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
 
   if (structuredHeader) {
     const float columnGap = Style::spaceLg * 1.5F * contentScale;
-    const float groupHeight = rows.info - headerWarningHeight;
-    const float columnWidth = std::max(0.0F, (headerWidth - columnGap) * 0.5F);
+    const bool showCapsLock = loginStyle.showCapsLock && m_capsLock;
+    const float groupHeight = rows.info - (showCapsLock ? headerWarningHeight : 0.0F);
+    const float columnCount = showHeaderUser ? 3.0F : 2.0F;
+    const float columnWidth = std::max(0.0F, (headerWidth - columnGap * (columnCount - 1.0F)) / columnCount);
+    const float clockColumnX = showHeaderUser ? columnWidth + columnGap : 0.0F;
+    const float batteryColumnX = clockColumnX + columnWidth + columnGap;
     const float iconSize = Style::fontSizeBody * contentScale;
     const float iconGap = Style::spaceSm * contentScale;
     const float textWidth = std::max(0.0F, columnWidth - iconSize - iconGap);
@@ -1654,7 +1681,7 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
     m_loginClockRow->setMaxWidth(columnWidth);
     m_loginClockRow->layout(renderer);
     m_loginClockRow->setPosition(
-        (columnWidth - m_loginClockRow->width()) * 0.5F,
+        clockColumnX + (columnWidth - m_loginClockRow->width()) * 0.5F,
         std::max(0.0F, (groupHeight - m_loginClockRow->height()) * 0.5F)
     );
 
@@ -1665,11 +1692,10 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
     m_loginBatteryRow->setMaxWidth(columnWidth);
     m_loginBatteryRow->layout(renderer);
     m_loginBatteryRow->setPosition(
-        columnWidth + columnGap + (columnWidth - m_loginBatteryRow->width()) * 0.5F,
+        batteryColumnX + (columnWidth - m_loginBatteryRow->width()) * 0.5F,
         std::max(0.0F, (groupHeight - m_loginBatteryRow->height()) * 0.5F)
     );
 
-    const bool showCapsLock = loginStyle.showCapsLock && m_capsLock;
     m_headerCapsLock->setVisible(showCapsLock);
     if (showCapsLock) {
       m_headerCapsLock->setGap(iconGap);
@@ -1684,8 +1710,37 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
           groupHeight + std::max(0.0F, (headerWarningHeight - m_headerCapsLock->height()) * 0.5F)
       );
     }
+
+    m_headerUser->setVisible(showHeaderUser);
+    if (showHeaderUser) {
+      const float avatarSize = kHeaderAvatarSize * contentScale;
+      const int avatarPx = static_cast<int>(std::round(avatarSize));
+      const std::string avatarPath =
+          m_config != nullptr ? shell::avatarDisplayPath(nullptr, m_config->config()) : std::string{};
+      if (avatarPath != m_headerUserAvatarPath || avatarPx != m_headerUserAvatarPx) {
+        m_headerUserAvatarPath = avatarPath;
+        m_headerUserAvatarPx = avatarPx;
+        if (avatarPath.empty() || !m_headerUserAvatar->setSourceFile(renderer, avatarPath, avatarPx, false, true)) {
+          m_headerUserAvatar->clear(renderer);
+        }
+      }
+      m_headerUserAvatar->setSize(avatarSize, avatarSize);
+      m_headerUserAvatar->setRadius(avatarSize * 0.5F);
+      m_headerUserAvatar->setVisible(m_headerUserAvatar->hasImage());
+      m_headerUserName->setFontSize(bodySize);
+      m_headerUserName->setMaxWidth(columnWidth);
+      m_headerUserName->setText(m_user);
+      m_headerUser->setGap(Style::spaceXs * contentScale);
+      m_headerUser->setMaxWidth(columnWidth);
+      m_headerUser->layout(renderer);
+      m_headerUser->setPosition(
+          (columnWidth - m_headerUser->width()) * 0.5F,
+          std::max(0.0F, (groupHeight - m_headerUser->height()) * 0.5F)
+      );
+    }
   } else if (m_headerCapsLock != nullptr) {
     m_headerCapsLock->setVisible(false);
+    m_headerUser->setVisible(false);
   }
 
   // Auth panel: sibling above/below the login box (flips below when near the top edge).

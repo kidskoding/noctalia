@@ -177,6 +177,11 @@ private:
   Label* m_headerCapsLockLabel = nullptr;
   Flex* m_headerBatteryText = nullptr;
   Label* m_headerBatteryStatus = nullptr;
+  Flex* m_headerUser = nullptr;
+  Image* m_headerUserAvatar = nullptr;
+  Label* m_headerUserName = nullptr;
+  std::string m_headerUserAvatarPath;
+  int m_headerUserAvatarPx = 0;
   Flex* m_mediaBlock = nullptr;
   Image* m_mediaArt = nullptr;
   Glyph* m_mediaFallbackGlyph = nullptr;
