@@ -2573,9 +2573,12 @@ void PanelManager::onConfigReloaded() {
   } else {
     applyDetachedReveal(m_detachedRevealProgress);
   }
-  const float panelBackgroundOpacity =
-      m_attachedToBar ? m_attachedBackgroundOpacity : shell::panel_surface::backgroundOpacity(m_config);
-  m_activePanel->setPanelCardOpacity(shell::panel_surface::cardOpacity(m_config, panelBackgroundOpacity));
+  const bool solidPanel = m_activePanelId == "launcher" || m_activePanelId == "session";
+  const float panelBackgroundOpacity = m_attachedToBar ? m_attachedBackgroundOpacity
+      : solidPanel                                      ? 1.0F
+                                                        : shell::panel_surface::backgroundOpacity(m_config);
+  m_activePanel->setPanelCardOpacity(
+      solidPanel ? 1.0F : shell::panel_surface::cardOpacity(m_config, panelBackgroundOpacity));
   if (!m_attachedToBar && m_bgNode != nullptr) {
     auto* bg = static_cast<Box*>(m_bgNode);
     bg->setPanelStyle(m_config->config().shell.panel.borders);
@@ -2697,7 +2700,8 @@ void PanelManager::buildScene(std::uint32_t width, std::uint32_t height) {
         bg->setRadii(Radii{radius, radius, radius, radius});
         // Fill (opacity-dependent) is applied via applyAttachedDecorationStyle() below.
       } else {
-        const float backgroundOpacity = shell::panel_surface::backgroundOpacity(m_config);
+        const bool solidPanel = m_activePanelId == "launcher" || m_activePanelId == "session";
+        const float backgroundOpacity = solidPanel ? 1.0F : shell::panel_surface::backgroundOpacity(m_config);
         bg->setFill(colorSpecFromRole(ColorRole::Surface, backgroundOpacity));
         if (panelBorders) {
           bg->setBorder(
@@ -2718,9 +2722,12 @@ void PanelManager::buildScene(std::uint32_t width, std::uint32_t height) {
     auto contentWrapper = ui::node({});
     m_contentNode = contentWrapper.get();
     m_activePanel->setAnimationManager(&m_animations);
-    const float panelBackgroundOpacity =
-        m_attachedToBar ? m_attachedBackgroundOpacity : shell::panel_surface::backgroundOpacity(m_config);
-    m_activePanel->setPanelCardOpacity(shell::panel_surface::cardOpacity(m_config, panelBackgroundOpacity));
+    const bool solidPanel = m_activePanelId == "launcher" || m_activePanelId == "session";
+    const float panelBackgroundOpacity = m_attachedToBar ? m_attachedBackgroundOpacity
+        : solidPanel                                      ? 1.0F
+                                                          : shell::panel_surface::backgroundOpacity(m_config);
+    m_activePanel->setPanelCardOpacity(
+        solidPanel ? 1.0F : shell::panel_surface::cardOpacity(m_config, panelBackgroundOpacity));
     m_activePanel->create();
     m_activePanel->onOpen(m_pendingOpenContext);
     m_pendingOpenContext.clear();
