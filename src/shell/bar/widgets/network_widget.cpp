@@ -303,7 +303,9 @@ void NetworkWidget::syncState(Renderer& renderer) {
     m_glyph->setGlyph(network_display::glyphForState(s));
   }
   m_glyph->setGlyphSize(Style::baseGlyphSize * m_contentScale);
-  m_glyph->setColor(widgetIconColorOr(colorSpecFromRole(ColorRole::OnSurface)));
+  m_glyph->setColor(
+      s.wirelessEnabled ? widgetIconColorOr(colorSpecFromRole(ColorRole::OnSurface)) : colorSpecFromRole(ColorRole::Error)
+  );
   m_glyph->measure(renderer);
 
   if (m_spinner != nullptr) {
