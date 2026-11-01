@@ -172,6 +172,11 @@ private:
   Box* m_backdrop = nullptr;
   Flex* m_loginPanel = nullptr;
   Flex* m_infoRow = nullptr;
+  Flex* m_headerCapsLock = nullptr;
+  Glyph* m_headerCapsLockGlyph = nullptr;
+  Label* m_headerCapsLockLabel = nullptr;
+  Flex* m_headerBatteryText = nullptr;
+  Label* m_headerBatteryStatus = nullptr;
   Flex* m_mediaBlock = nullptr;
   Image* m_mediaArt = nullptr;
   Glyph* m_mediaFallbackGlyph = nullptr;

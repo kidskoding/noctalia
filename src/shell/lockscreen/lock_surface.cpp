@@ -19,6 +19,7 @@
 #include "shell/session/session_action_meta.h"
 #include "shell/session/session_action_runner.h"
 #include "system/weather_service.h"
+#include "system/battery_warning_monitor.h"
 #include "time/time_format.h"
 #include "ui/builders.h"
 #include "ui/controls/button.h"
@@ -217,6 +218,25 @@ LockSurface::LockSurface(WaylandConnection& connection, ConfigService* config) :
       )
   );
 
+  m_infoRow->addChild(ui::row({
+      .out = &m_headerCapsLock,
+      .align = FlexAlign::Center,
+      .gap = Style::spaceXs,
+      .visible = false,
+      .participatesInLayout = false,
+      .configure = [](Flex& row) { row.setZIndex(1); },
+  }, ui::glyph({
+      .out = &m_headerCapsLockGlyph,
+      .glyph = "keyboard",
+      .glyphSize = Style::fontSizeBody,
+      .color = colorSpecFromRole(ColorRole::Error),
+  }), ui::label({
+      .out = &m_headerCapsLockLabel,
+      .fontSize = Style::fontSizeCaption,
+      .color = colorSpecFromRole(ColorRole::Error),
+      .maxLines = 1,
+  })));
+
   m_infoRow->addChild(
       ui::flex(
           FlexDirection::Horizontal,
@@ -375,7 +395,12 @@ LockSurface::LockSurface(WaylandConnection& connection, ConfigService* config) :
       .glyphSize = Style::baseGlyphSize,
       .color = colorSpecFromRole(ColorRole::Secondary),
   }));
-  m_loginBatteryRow->addChild(
+  m_loginBatteryRow->addChild(ui::column({
+      .out = &m_headerBatteryText,
+      .align = FlexAlign::Center,
+      .gap = Style::spaceXs,
+  }));
+  m_headerBatteryText->addChild(
       ui::label({
           .out = &m_loginBatteryLabel,
           .fontSize = Style::fontSizeCaption,
@@ -384,6 +409,14 @@ LockSurface::LockSurface(WaylandConnection& connection, ConfigService* config) :
           .visible = false,
       })
   );
+
+  m_headerBatteryText->addChild(ui::label({
+      .out = &m_headerBatteryStatus,
+      .fontSize = Style::fontSizeCaption,
+      .color = colorSpecFromRole(ColorRole::OnSurfaceVariant),
+      .maxLines = 1,
+      .textAlign = TextAlign::Center,
+  }));
 
   m_weatherBlock->addChild(
       ui::flex(
@@ -1321,6 +1354,12 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
     }
   }
 
+  const float headerWarningHeight = regular && loginStyle.showClock && !loginStyle.showMedia
+      ? Style::controlHeightSm
+      : 0.0F;
+  panelHeight += headerWarningHeight;
+  panelY -= headerWarningHeight * 0.5F;
+
   panelX = util::clampOrdered(panelX, Style::spaceLg, sw - panelWidth - Style::spaceLg);
   panelY = util::clampOrdered(panelY, Style::spaceLg, sh - panelHeight - Style::spaceLg);
 
@@ -1386,9 +1425,10 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
   const bool showLayoutChip =
       loginVisible && loginStyle.showKeyboardLayout && m_layoutChip != nullptr && m_layoutChip->visible();
 
-  const lockscreen_login_box::RegularRowHeights rows = regular
-      ? lockscreen_login_box::regularRowHeights(panelHeight, showSession, showInfoExtras)
+  lockscreen_login_box::RegularRowHeights rows = regular
+      ? lockscreen_login_box::regularRowHeights(panelHeight - headerWarningHeight, showSession, showInfoExtras)
       : lockscreen_login_box::RegularRowHeights{};
+  rows.info += headerWarningHeight;
   const float contentScale = regular ? rows.scale : 1.0F;
   m_regularContentScale = contentScale;
   const float captionSize = Style::fontSizeCaption * contentScale;
@@ -1451,13 +1491,15 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
     m_weatherGlyph->setGlyphSize(weatherGlyphSize);
   }
   if (m_weatherTemp != nullptr) {
-    m_weatherTemp->setFontSize(bodySize);
+    m_weatherTemp->setFontSize(bodySize * (loginStyle.showClock ? 1.35F : 1.0F));
   }
   if (m_weatherMeta != nullptr) {
     m_weatherMeta->setFontSize(captionSize);
   }
   if (m_loginBatteryLabel != nullptr) {
-    m_loginBatteryLabel->setFontSize(bodySize);
+    m_loginBatteryLabel->setFontSize(bodySize * 1.35F);
+    m_headerBatteryStatus->setFontSize(captionSize);
+    m_headerBatteryText->setGap(Style::spaceXs * contentScale);
     m_loginBatteryGlyph->setGlyphSize(Style::baseGlyphSize * contentScale);
     m_loginClockRow->setGap(Style::spaceSm * contentScale);
     m_weatherCurrent->setGap((loginStyle.showClock ? Style::spaceLg : Style::spaceSm) * contentScale);
@@ -1582,7 +1624,69 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
     m_passwordRevealButton->setGlyphSize(sessionGlyphSize);
   }
 
+  const bool structuredHeader = regular && loginStyle.showClock && !showMedia;
+  const float headerWidth = std::min(contentWidth, 460.0F * contentScale);
+  if (m_weatherCurrent != nullptr) {
+    m_loginClockRow->setParticipatesInLayout(!structuredHeader);
+    m_loginBatteryRow->setParticipatesInLayout(!structuredHeader);
+    m_weatherCurrent->setMinWidth(structuredHeader ? headerWidth : 0.0F);
+    m_weatherCurrent->setMaxWidth(structuredHeader ? headerWidth : 0.0F);
+    m_weatherCurrent->setMinHeight(structuredHeader ? rows.info : 0.0F);
+    m_weatherCurrent->setMaxHeight(structuredHeader ? rows.info : 0.0F);
+  }
+
   m_loginPanel->arrange(renderer, LayoutRect{panelX, panelY, panelWidth, panelHeight});
+
+  if (structuredHeader) {
+    const float columnGap = Style::spaceLg * 1.5F * contentScale;
+    const float groupHeight = rows.info - headerWarningHeight;
+    const float columnWidth = std::max(0.0F, (headerWidth - columnGap) * 0.5F);
+    const float iconSize = Style::fontSizeBody * contentScale;
+    const float iconGap = Style::spaceSm * contentScale;
+    const float textWidth = std::max(0.0F, columnWidth - iconSize - iconGap);
+
+    m_weatherGlyph->setGlyphSize(iconSize);
+    m_weatherTextColumn->setGap(Style::spaceXs * contentScale);
+    m_weatherMeta->setMaxWidth(textWidth);
+    m_weatherTemp->setMaxWidth(textWidth);
+    m_weatherTemp->setTextAlign(TextAlign::Center);
+    m_loginClockRow->setGap(iconGap);
+    m_loginClockRow->setMaxWidth(columnWidth);
+    m_loginClockRow->layout(renderer);
+    m_loginClockRow->setPosition(
+        (columnWidth - m_loginClockRow->width()) * 0.5F,
+        std::max(0.0F, (groupHeight - m_loginClockRow->height()) * 0.5F)
+    );
+
+    m_loginBatteryLabel->setMaxWidth(textWidth);
+    m_headerBatteryStatus->setMaxWidth(textWidth);
+    m_loginBatteryGlyph->setGlyphSize(iconSize);
+    m_loginBatteryRow->setGap(iconGap);
+    m_loginBatteryRow->setMaxWidth(columnWidth);
+    m_loginBatteryRow->layout(renderer);
+    m_loginBatteryRow->setPosition(
+        columnWidth + columnGap + (columnWidth - m_loginBatteryRow->width()) * 0.5F,
+        std::max(0.0F, (groupHeight - m_loginBatteryRow->height()) * 0.5F)
+    );
+
+    const bool showCapsLock = loginStyle.showCapsLock && m_capsLock;
+    m_headerCapsLock->setVisible(showCapsLock);
+    if (showCapsLock) {
+      m_headerCapsLock->setGap(iconGap);
+      m_headerCapsLockGlyph->setGlyphSize(iconSize);
+      m_headerCapsLockLabel->setFontSize(captionSize);
+      m_headerCapsLockLabel->setMaxWidth(std::max(0.0F, headerWidth - iconSize - iconGap));
+      m_headerCapsLockLabel->setText(i18n::tr("lockscreen.caps-lock-on"));
+      m_headerCapsLock->setMaxWidth(headerWidth);
+      m_headerCapsLock->layout(renderer);
+      m_headerCapsLock->setPosition(
+          (contentWidth - m_headerCapsLock->width()) * 0.5F,
+          groupHeight + std::max(0.0F, (headerWarningHeight - m_headerCapsLock->height()) * 0.5F)
+      );
+    }
+  } else if (m_headerCapsLock != nullptr) {
+    m_headerCapsLock->setVisible(false);
+  }
 
   // Auth panel: sibling above/below the login box (flips below when near the top edge).
   if (m_authPanel != nullptr && m_authLabel != nullptr) {
@@ -1876,9 +1980,24 @@ void LockSurface::syncRegularExtras(Renderer& renderer) {
           if (showBattery) {
             const auto& battery = m_upower->state();
             const int percent = static_cast<int>(std::round(battery.percentage));
+            ColorSpec normalColor = colorSpecFromRole(ColorRole::Secondary);
+            ColorSpec warningColor = colorSpecFromRole(ColorRole::Error);
+            int warningThreshold = 30;
+            if (m_config != nullptr) {
+              const auto& config = m_config->config();
+              warningThreshold = batteryWarningThresholdForSelector(config.battery, m_upower, "auto");
+              if (const auto it = config.widgets.find("battery"); it != config.widgets.end()) {
+                normalColor = it->second.getColorSpec("icon_color", normalColor, "widget.battery.icon_color");
+                warningColor = it->second.getColorSpec("warning_color", warningColor, "widget.battery.warning_color");
+              }
+            }
+            m_loginBatteryGlyph->setColor(!batteryStatePlugged(battery.state).value_or(false) && percent < 15 ? colorSpecFromRole(ColorRole::Error)
+                : !batteryStatePlugged(battery.state).value_or(false) && percent < warningThreshold          ? warningColor
+                                                                                                           : normalColor);
             m_loginBatteryGlyph->setGlyph(batteryGlyphName(battery.percentage, battery.state));
             m_loginBatteryLabel->setText(std::format("{}%", percent));
             m_loginBatteryLabel->setTooltip(batteryStateLabel(battery.state));
+            m_headerBatteryStatus->setText(batteryStateLabel(battery.state));
           }
         }
       } else if (weatherReady) {
@@ -1984,7 +2103,7 @@ std::string LockSurface::resolveStatusText(const lockscreen_login_box::LoginBoxS
     isError = true;
     return m_status;
   }
-  if (m_capsLock && style.showCapsLock) {
+  if (m_capsLock && style.showCapsLock && !(style.showClock && !style.showMedia && style.layout == lockscreen_login_box::LayoutMode::Regular)) {
     isError = true;
     return i18n::tr("lockscreen.caps-lock-on");
   }
