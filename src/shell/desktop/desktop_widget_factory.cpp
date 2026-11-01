@@ -319,6 +319,7 @@ std::unique_ptr<DesktopWidget> DesktopWidgetFactory::create(
             .albumArtBackground = getBoolSetting(settings, "album_art_background", false),
             .albumArtBlur = getIntSetting(settings, "album_art_blur", 24),
             .audioVisualizer = getBoolSetting(settings, "audio_visualizer", false),
+            .showProgress = getBoolSetting(settings, "show_progress", false),
         }
     );
     applyCommonSettings(*widget, settings);

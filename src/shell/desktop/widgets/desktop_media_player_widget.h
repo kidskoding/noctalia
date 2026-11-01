@@ -16,6 +16,7 @@ class Image;
 class Label;
 class MprisService;
 class PipeWireSpectrum;
+class Slider;
 
 class DesktopMediaPlayerWidget : public DesktopWidget {
 public:
@@ -27,6 +28,7 @@ public:
     bool albumArtBackground = false;
     int albumArtBlur = 24;
     bool audioVisualizer = false;
+    bool showProgress = false;
   };
 
   DesktopMediaPlayerWidget(MprisService* mpris, HttpClient* httpClient, PipeWireSpectrum* spectrum, Options options);
@@ -73,6 +75,9 @@ private:
   bool m_albumArtBackground = false;
   int m_albumArtBlur = 24;
   bool m_audioVisualizerEnabled = false;
+  bool m_showProgress = false;
+  bool m_syncingProgress = false;
+  std::string m_progressTrackId;
   bool m_editorPreview = false;
   bool m_visible = true;
   bool m_visibilityInitialized = false;
@@ -86,6 +91,8 @@ private:
   Button* m_prev = nullptr;
   Button* m_playPause = nullptr;
   Button* m_next = nullptr;
+  Slider* m_progress = nullptr;
+  Label* m_progressTime = nullptr;
 
   std::string m_lastTitle;
   std::string m_lastArtist;

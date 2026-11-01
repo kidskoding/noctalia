@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
 
 using namespace mpris;
 
@@ -55,7 +56,7 @@ DesktopMediaPlayerWidget::DesktopMediaPlayerWidget(
       m_color(options.color), m_shadow(options.shadow), m_hideWhenNoMedia(options.hideWhenNoMedia),
       m_albumArtBackground(options.albumArtBackground),
       m_albumArtBlur(std::clamp(options.albumArtBlur, 0, kMaxBackgroundBlurRadius)),
-      m_audioVisualizerEnabled(options.audioVisualizer) {}
+      m_audioVisualizerEnabled(options.audioVisualizer), m_showProgress(options.showProgress) {}
 
 DesktopMediaPlayerWidget::~DesktopMediaPlayerWidget() {
   if (m_spectrum != nullptr && m_spectrumListenerId != 0) {
@@ -134,6 +135,33 @@ void DesktopMediaPlayerWidget::create() {
   );
 
   rootNode->addChild(std::move(controls));
+  rootNode->addChild(ui::slider({
+      .out = &m_progress,
+      .minValue = 0.0,
+      .maxValue = 1.0,
+      .step = 0.1,
+      .value = 0.0,
+      .enabled = false,
+      .visible = false,
+      .onValueChanged = [this](double seconds) {
+        if (m_syncingProgress || m_mpris == nullptr) {
+          return;
+        }
+        const auto active = m_mpris->activePlayer();
+        if (active.has_value() && active->canSeek && active->trackId == m_progressTrackId) {
+          const auto targetUs = static_cast<std::int64_t>(std::llround(seconds * 1000000.0));
+          (void)m_mpris->setPosition(active->busName, targetUs);
+          requestUpdate();
+        }
+      },
+  }));
+  rootNode->addChild(ui::label({
+      .out = &m_progressTime,
+      .fontSize = Style::fontSizeCaption,
+      .color = m_color,
+      .maxLines = 1,
+      .visible = false,
+  }));
   setRoot(std::move(rootNode));
 
   auto backgroundArtwork = ui::image({
@@ -207,6 +235,15 @@ bool DesktopMediaPlayerWidget::applySetting(
     if (const auto* v = std::get_if<bool>(&value)) {
       m_shadow = *v;
       applyShadow();
+      return true;
+    }
+    return false;
+  }
+  if (key == "show_progress") {
+    if (const auto* v = std::get_if<bool>(&value)) {
+      m_showProgress = *v;
+      requestLayout();
+      requestUpdate();
       return true;
     }
     return false;
@@ -395,7 +432,20 @@ void DesktopMediaPlayerWidget::layoutVertical(Renderer& renderer, float scale) {
   const float controlsX = std::round((artW - m_controls->width()) * 0.5F);
   m_controls->setPosition(controlsX, placedControlsY);
 
-  root()->setSize(artW, placedControlsY + m_controls->height());
+  float height = placedControlsY + m_controls->height();
+  if (m_progress->visible()) {
+    m_progress->setControlHeight(24.0F * scale);
+    m_progress->setTrackHeight(Style::sliderTrackHeight * scale);
+    m_progress->setThumbSize(Style::sliderThumbSize * scale);
+    m_progress->arrange(renderer, LayoutRect{0.0F, height + spacing, artW, 24.0F * scale});
+    height += spacing + 24.0F * scale;
+    m_progressTime->setFontSize(Style::fontSizeCaption * scale);
+    m_progressTime->setMaxWidth(artW);
+    m_progressTime->measure(renderer);
+    m_progressTime->setPosition(0.0F, height);
+    height += m_progressTime->height();
+  }
+  root()->setSize(artW, height);
 }
 
 void DesktopMediaPlayerWidget::layoutHorizontal(Renderer& renderer, float scale) {
@@ -441,7 +491,20 @@ void DesktopMediaPlayerWidget::layoutHorizontal(Renderer& renderer, float scale)
   m_visualizerY = controlsY + (controlsH - m_visualizerHeight) * 0.5F;
   m_visualizerWidth = std::max(0.0F, controlsX - spacing - m_visualizerX);
 
-  root()->setSize(totalWidth, artH);
+  float height = artH;
+  if (m_progress->visible()) {
+    m_progress->setControlHeight(24.0F * scale);
+    m_progress->setTrackHeight(Style::sliderTrackHeight * scale);
+    m_progress->setThumbSize(Style::sliderThumbSize * scale);
+    m_progress->arrange(renderer, LayoutRect{0.0F, height + spacing, totalWidth, 24.0F * scale});
+    height += spacing + 24.0F * scale;
+    m_progressTime->setFontSize(Style::fontSizeCaption * scale);
+    m_progressTime->setMaxWidth(totalWidth);
+    m_progressTime->measure(renderer);
+    m_progressTime->setPosition(0.0F, height);
+    height += m_progressTime->height();
+  }
+  root()->setSize(totalWidth, height);
 }
 
 void DesktopMediaPlayerWidget::layoutBoxed(Renderer& renderer, float width, float height) {
@@ -476,6 +539,8 @@ void DesktopMediaPlayerWidget::layoutBoxed(Renderer& renderer, float width, floa
   offsetNode(m_title);
   offsetNode(m_artist);
   offsetNode(m_controls);
+  offsetNode(m_progress);
+  offsetNode(m_progressTime);
   m_visualizerX += offsetX;
   m_visualizerY += offsetY;
   root()->setSize(width, height);
@@ -587,6 +652,33 @@ void DesktopMediaPlayerWidget::sync(Renderer& renderer) {
     return;
 
   const auto active = m_mpris != nullptr ? m_mpris->activePlayer() : std::nullopt;
+
+  if (m_progress != nullptr && m_progressTime != nullptr) {
+    const bool show = m_showProgress && active.has_value() && active->lengthUs > 0;
+    if (m_progress->visible() != show) {
+      m_progress->setVisible(show);
+      m_progressTime->setVisible(show);
+      requestLayout();
+    }
+    if (show) {
+      const bool canSeek = active->canSeek;
+      m_progress->setEnabled(canSeek);
+      const auto positionUs = std::clamp<std::int64_t>(
+          m_mpris->position(active->busName).value_or(active->positionUs), 0, active->lengthUs
+      );
+      if (!m_progress->dragging()) {
+        m_progressTrackId = active->trackId;
+        m_syncingProgress = true;
+        m_progress->setRange(0.0, static_cast<double>(active->lengthUs) / 1000000.0);
+        m_progress->setValue(static_cast<double>(positionUs) / 1000000.0);
+        m_syncingProgress = false;
+      }
+      const auto elapsed = static_cast<std::int64_t>(m_progress->value());
+      const auto total = active->lengthUs / 1000000;
+      m_progressTime->setText(std::format("{}:{:02} / {}:{:02}", elapsed / 60, elapsed % 60, total / 60, total % 60));
+      requestRedraw();
+    }
+  }
 
   std::string title;
   std::string artist;
