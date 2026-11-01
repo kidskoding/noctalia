@@ -119,6 +119,9 @@ void ClockWidget::create() {
       })
   );
 
+  m_label->setUseMarkup(true);
+  m_secondaryLabel->setUseMarkup(true);
+
   setRoot(std::move(area));
 }
 
