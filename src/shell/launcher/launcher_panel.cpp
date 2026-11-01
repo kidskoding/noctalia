@@ -3657,6 +3657,16 @@ bool LauncherPanel::handleKeyEvent(std::uint32_t sym, std::uint32_t modifiers) {
     return true;
   }
 
+  const bool tabPrevious = KeybindMatcher::matches(KeybindAction::TabPrevious, sym, modifiers);
+  if (m_launcherNavigation != nullptr && m_launcherNavigation->visible()
+      && (tabPrevious || KeybindMatcher::matches(KeybindAction::TabNext, sym, modifiers))) {
+    // The last navigation option is Providers, which has no category slot.
+    const std::size_t count = m_categoryFilterSlots.size() + 1;
+    const std::size_t current = m_launcherNavigation->selectedIndex();
+    m_launcherNavigation->setSelectedIndex(tabPrevious ? (current + count - 1) % count : (current + 1) % count);
+    return true;
+  }
+
   if (KeybindMatcher::matches(KeybindAction::Up, sym, modifiers)) {
     if (sectionNav) {
       moveSectionSelection(true, -1, 1);
