@@ -698,7 +698,10 @@ std::unique_ptr<Flex> HomeTab::createHeaderActions() {
           .out = &m_sessionButton,
           .glyph = "shutdown",
           .onClick = [] { PanelManager::instance().togglePanel("session"); },
-          .configure = [scale](Button& button) { panel_button_style::configureHeaderIconButton(button, scale); },
+          .configure = [scale](Button& button) {
+            panel_button_style::configureHeaderIconButton(button, scale);
+            button.setVariant(ButtonVariant::Destructive);
+          },
       })
   );
   syncHeaderActions();
