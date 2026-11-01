@@ -23,7 +23,7 @@ namespace {
         .value = std::to_string(percent) + "%",
         .progress = std::clamp(volume, 0.0F, 1.0F),
         .overLimit = percent > 100,
-        .inactive = muted,
+        .inactive = muted || percent == 0,
     };
   }
 
@@ -45,7 +45,7 @@ namespace {
         .value = std::to_string(percent) + "%",
         .progress = std::clamp(volume, 0.0F, 1.0F),
         .overLimit = percent > 100,
-        .inactive = muted,
+        .inactive = muted || percent == 0,
     };
   }
 

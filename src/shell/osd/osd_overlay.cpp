@@ -836,9 +836,11 @@ void OsdOverlay::updateInstanceContent(Instance& inst) {
   inst.background->setFill(colorSpecFromRole(ColorRole::Surface, osdBackgroundOpacity(m_config)));
   inst.background->setBorder(osdBorderColor(m_config), osdBorderWidth(m_config, s));
 
-  const ColorRole accentRole = m_content.overLimit ? ColorRole::Error
-      : m_content.inactive                         ? ColorRole::OnSurfaceVariant
-                                                   : ColorRole::Primary;
+  const bool silentAudio = m_content.inactive
+      && (m_content.kind == OsdKind::Volume || m_content.kind == OsdKind::Microphone);
+  const ColorRole accentRole = (m_content.overLimit || silentAudio) ? ColorRole::Error
+      : m_content.inactive                                        ? ColorRole::OnSurfaceVariant
+                                                                  : ColorRole::Primary;
   inst.glyph->setGlyph(m_content.icon);
   inst.glyph->setColor(colorSpecFromRole(accentRole));
   inst.progress->setVisible(m_content.showProgress);
@@ -846,9 +848,10 @@ void OsdOverlay::updateInstanceContent(Instance& inst) {
   inst.progress->setOrientation(vertical ? ProgressBarOrientation::Vertical : ProgressBarOrientation::Horizontal);
   inst.row->setJustify((vertical || !m_content.showProgress) ? FlexJustify::Center : FlexJustify::Start);
   inst.value->setFontSize(valueFontSize(s));
-  const ColorRole valueRole = m_content.overLimit ? ColorRole::Error
-      : m_content.inactive                        ? ColorRole::OnSurfaceVariant
-                                                  : ColorRole::OnSurface;
+  const ColorRole valueRole = silentAudio ? ColorRole::OnSurface
+      : m_content.overLimit                  ? ColorRole::Error
+      : m_content.inactive                   ? ColorRole::OnSurfaceVariant
+                                             : ColorRole::OnSurface;
   inst.value->setColor(colorSpecFromRole(valueRole));
   inst.value->setTextAlign((vertical || !m_content.showProgress) ? TextAlign::Center : TextAlign::End);
   // Text OSDs (media title, device name, ...) carry arbitrary-length values; cap them to the card
