@@ -97,8 +97,12 @@ namespace {
               colorSpecFromRole(ColorRole::Error), colorSpecFromRole(ColorRole::OutlineVariant),
               colorSpecFromRole(ColorRole::OnError)
           ),
-          .hover =
-              makeState(colorSpecFromRole(ColorRole::Hover), clearColorSpec(), colorSpecFromRole(ColorRole::OnHover)),
+          .hover = makeState(
+              fixedColorSpec(lerpColor(
+                  resolveColorSpec(colorSpecFromRole(ColorRole::Error)), rgba(1.0F, 1.0F, 1.0F, 1.0F), 0.25F
+              )),
+              clearColorSpec(), colorSpecFromRole(ColorRole::OnError)
+          ),
           .pressed = makeState(
               colorSpecFromRole(ColorRole::Error), colorSpecFromRole(ColorRole::Error),
               colorSpecFromRole(ColorRole::OnError)
