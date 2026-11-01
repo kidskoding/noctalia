@@ -5,6 +5,7 @@
 #include "core/ui_phase.h"
 #include "dbus/mpris/mpris_art.h"
 #include "dbus/mpris/mpris_service.h"
+#include "dbus/upower/upower_service.h"
 #include "ext-session-lock-v1-client-protocol.h"
 #include "i18n/i18n.h"
 #include "render/core/blur_cache.h"
@@ -316,7 +317,12 @@ LockSurface::LockSurface(WaylandConnection& connection, ConfigService* config) :
           }
       )
   );
-  m_weatherCurrent->addChild(
+  m_weatherCurrent->addChild(ui::row({
+      .out = &m_loginClockRow,
+      .align = FlexAlign::Center,
+      .gap = Style::spaceSm,
+  }));
+  m_loginClockRow->addChild(
       ui::glyph({
           .out = &m_weatherGlyph,
           .glyph = "weather-cloud",
@@ -324,7 +330,7 @@ LockSurface::LockSurface(WaylandConnection& connection, ConfigService* config) :
           .color = colorSpecFromRole(ColorRole::Primary),
       })
   );
-  m_weatherCurrent->addChild(
+  m_loginClockRow->addChild(
       ui::flex(
           FlexDirection::Vertical,
           {
@@ -340,6 +346,15 @@ LockSurface::LockSurface(WaylandConnection& connection, ConfigService* config) :
   );
   m_weatherTextColumn->addChild(
       ui::label({
+          .out = &m_weatherMeta,
+          .fontSize = Style::fontSizeCaption,
+          .color = colorSpecFromRole(ColorRole::OnSurfaceVariant),
+          .maxLines = 1,
+          .textAlign = TextAlign::Start,
+      })
+  );
+  m_weatherTextColumn->addChild(
+      ui::label({
           .out = &m_weatherTemp,
           .fontSize = Style::fontSizeBody,
           .fontWeight = FontWeight::Bold,
@@ -348,15 +363,28 @@ LockSurface::LockSurface(WaylandConnection& connection, ConfigService* config) :
           .textAlign = TextAlign::Start,
       })
   );
-  m_weatherTextColumn->addChild(
+  m_weatherCurrent->addChild(ui::row({
+      .out = &m_loginBatteryRow,
+      .align = FlexAlign::Center,
+      .gap = Style::spaceXs,
+      .visible = false,
+  }));
+  m_loginBatteryRow->addChild(ui::glyph({
+      .out = &m_loginBatteryGlyph,
+      .glyph = "battery-4",
+      .glyphSize = Style::baseGlyphSize,
+      .color = colorSpecFromRole(ColorRole::Secondary),
+  }));
+  m_loginBatteryRow->addChild(
       ui::label({
-          .out = &m_weatherMeta,
+          .out = &m_loginBatteryLabel,
           .fontSize = Style::fontSizeCaption,
-          .color = colorSpecFromRole(ColorRole::OnSurfaceVariant),
+          .color = colorSpecFromRole(ColorRole::OnSurface),
           .maxLines = 1,
-          .textAlign = TextAlign::Start,
+          .visible = false,
       })
   );
+
   m_weatherBlock->addChild(
       ui::flex(
           FlexDirection::Horizontal,
@@ -603,12 +631,13 @@ LockSurface::~LockSurface() {
 }
 
 void LockSurface::setLoginBoxServices(
-    SessionActionRunner* sessionActions, MprisService* mpris, const WeatherService* weather, HttpClient* httpClient
+    SessionActionRunner* sessionActions, MprisService* mpris, const WeatherService* weather, HttpClient* httpClient, UPowerService* upower
 ) {
   m_sessionActions = sessionActions;
   m_mpris = mpris;
   m_weather = weather;
   m_httpClient = httpClient;
+  m_upower = upower;
   rebuildSessionButtons();
   requestUpdate();
 }
@@ -1427,6 +1456,16 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
   if (m_weatherMeta != nullptr) {
     m_weatherMeta->setFontSize(captionSize);
   }
+  if (m_loginBatteryLabel != nullptr) {
+    m_loginBatteryLabel->setFontSize(bodySize);
+    m_loginBatteryGlyph->setGlyphSize(Style::baseGlyphSize * contentScale);
+    m_loginClockRow->setGap(Style::spaceSm * contentScale);
+    m_weatherCurrent->setGap((loginStyle.showClock ? Style::spaceLg : Style::spaceSm) * contentScale);
+    m_loginBatteryRow->setGap(Style::spaceXs * contentScale);
+    m_loginClockRow->setJustify(FlexJustify::Center);
+    m_weatherTextColumn->setAlign(loginStyle.showClock ? FlexAlign::Center : FlexAlign::Stretch);
+    m_weatherMeta->setTextAlign(loginStyle.showClock ? TextAlign::Center : TextAlign::Start);
+  }
   for (auto& column : m_forecastColumns) {
     if (column.day != nullptr) {
       column.day->setFontSize(captionSize);
@@ -1464,6 +1503,11 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
     m_weatherMeta->setMaxWidth(weatherTextMax);
     m_weatherMeta->setEllipsize(TextEllipsize::End);
     m_weatherMeta->setVisible(showWeather && (loginStyle.showClock || weatherBudget >= 160.0F) && !m_weatherMeta->text().empty());
+  }
+
+  if (m_loginBatteryLabel != nullptr) {
+    m_loginBatteryLabel->setMaxWidth(weatherTextMax);
+    m_loginBatteryLabel->setEllipsize(TextEllipsize::End);
   }
 
   // Scale info / status / password / session by the same factor so extra panel
@@ -1825,6 +1869,18 @@ void LockSurface::syncRegularExtras(Renderer& renderer) {
         tempText = formatLocalTime("{:%-I:%M %p}");
         metaText = formatLocalTime("{:%a, %b %-d}");
         fingerprint = tempText + "|" + metaText;
+        if (m_loginBatteryLabel != nullptr) {
+          const bool showBattery = style.showBattery && m_upower != nullptr && m_upower->state().isPresent;
+          m_loginBatteryRow->setVisible(showBattery);
+          m_loginBatteryLabel->setVisible(showBattery);
+          if (showBattery) {
+            const auto& battery = m_upower->state();
+            const int percent = static_cast<int>(std::round(battery.percentage));
+            m_loginBatteryGlyph->setGlyph(batteryGlyphName(battery.percentage, battery.state));
+            m_loginBatteryLabel->setText(std::format("{}%", percent));
+            m_loginBatteryLabel->setTooltip(batteryStateLabel(battery.state));
+          }
+        }
       } else if (weatherReady) {
         const auto& snapshot = m_weather->snapshot();
         glyphName = WeatherService::glyphForCode(snapshot.current.weatherCode, snapshot.current.isDay);

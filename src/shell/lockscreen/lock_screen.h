@@ -34,6 +34,7 @@ class SharedTextureCache;
 class SystemBus;
 class WaylandConnection;
 class WeatherService;
+class UPowerService;
 enum class LockscreenTransition : std::uint8_t;
 
 class LockScreen {
@@ -50,7 +51,7 @@ public:
       std::function<void()> onReadyForSleep
   );
   void setLoginBoxServices(
-      SessionActionRunner* sessionActions, MprisService* mpris, const WeatherService* weather, HttpClient* httpClient
+      SessionActionRunner* sessionActions, MprisService* mpris, const WeatherService* weather, HttpClient* httpClient, UPowerService* upower
   );
   bool lock();
   void primeDesktopCaptures();
@@ -205,6 +206,7 @@ private:
   MprisService* m_mpris = nullptr;
   const WeatherService* m_weather = nullptr;
   HttpClient* m_httpClient = nullptr;
+  UPowerService* m_upower = nullptr;
   Timer m_suspendTimeoutTimer;
   Timer m_outputPowerOffTimer;
   // CLOCK_BOOTTIME millis when the lock flow started; grace expires gracePeriodSeconds after it.
