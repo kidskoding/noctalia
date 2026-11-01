@@ -4,4 +4,5 @@
 // volume and effective mute. Single source of the speaker mute->slashed-icon rule and the
 // volume-level thresholds so the bar widget and the OSD can never map the same state to different
 // icons.
-[[nodiscard]] const char* audioVolumeGlyph(float volume, bool muted, bool isInput);
+// An unmuted output on headphones shows the headphones glyph instead of the speaker level.
+[[nodiscard]] const char* audioVolumeGlyph(float volume, bool muted, bool isInput, bool headphones = false);

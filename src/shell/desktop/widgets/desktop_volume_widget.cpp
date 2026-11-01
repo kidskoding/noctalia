@@ -326,11 +326,13 @@ void DesktopVolumeWidget::doLayout(Renderer& renderer) {
 void DesktopVolumeWidget::syncState(Renderer& renderer, bool forceLayout) {
   float volume = 0.0F;
   bool muted = false;
+  bool headphones = false;
   std::string deviceName;
 
   if (const auto* node = currentNode(); node != nullptr) {
     volume = node->volume;
     muted = node->muted;
+    headphones = node->headphones;
     deviceName = audioDeviceLabel(*node);
   }
 
@@ -340,7 +342,7 @@ void DesktopVolumeWidget::syncState(Renderer& renderer, bool forceLayout) {
   const std::string statusText = muted
       ? i18n::tr("desktop-widgets.volume.muted")
       : i18n::tr(m_input ? "desktop-widgets.volume.mic" : "desktop-widgets.volume.volume");
-  const std::string glyphName = resolveGlyphName(volume, muted);
+  const std::string glyphName = resolveGlyphName(volume, muted, headphones);
 
   bool changed = forceLayout;
   if (percentText != m_lastPercentText) {
@@ -451,11 +453,11 @@ void DesktopVolumeWidget::applyShadow() {
   }
 }
 
-std::string DesktopVolumeWidget::resolveGlyphName(float volume, bool muted) const {
+std::string DesktopVolumeWidget::resolveGlyphName(float volume, bool muted, bool headphones) const {
   if (!m_glyphOverride.empty()) {
     return m_glyphOverride;
   }
-  return audioVolumeGlyph(volume, muted, m_input);
+  return audioVolumeGlyph(volume, muted, m_input, !m_input && headphones);
 }
 
 const AudioNode* DesktopVolumeWidget::currentNode() const noexcept {

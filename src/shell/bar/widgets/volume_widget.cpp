@@ -111,6 +111,7 @@ void VolumeWidget::syncState(Renderer& renderer) {
   const auto* node = m_target == VolumeWidgetTarget::Input ? m_audio->defaultSource() : m_audio->defaultSink();
   float volume = node != nullptr ? node->volume : 0.0F;
   bool muted = node != nullptr ? node->muted : false;
+  const bool headphones = m_target == VolumeWidgetTarget::Output && node != nullptr && node->headphones;
   const auto kind =
       m_target == VolumeWidgetTarget::Input ? AudioEffectsProfileKind::Input : AudioEffectsProfileKind::Output;
   const std::string effectsProfile =
@@ -124,6 +125,7 @@ void VolumeWidget::syncState(Renderer& renderer) {
 
   if (volume == m_lastVolume
       && muted == m_lastMuted
+      && headphones == m_lastHeadphones
       && m_isVertical == m_lastVertical
       && effectsProfile == m_lastEffectsProfile
       && micActive == m_lastMicActive) {
@@ -132,6 +134,7 @@ void VolumeWidget::syncState(Renderer& renderer) {
 
   m_lastVolume = volume;
   m_lastMuted = muted;
+  m_lastHeadphones = headphones;
   m_lastVertical = m_isVertical;
   m_lastEffectsProfile = effectsProfile;
   m_lastMicActive = micActive;
@@ -150,7 +153,7 @@ void VolumeWidget::syncState(Renderer& renderer) {
         silent ? m_muteColor : widgetIconColorOr(colorSpecFromRole(ColorRole::OnSurface))
     );
   } else if (m_glyph != nullptr) {
-    m_glyph->setGlyph(glyphName(volume, silent, effectsProfile));
+    m_glyph->setGlyph(glyphName(volume, silent, effectsProfile, headphones));
     m_glyph->setGlyphSize(Style::baseGlyphSize * m_contentScale);
     m_glyph->setColor(silent ? m_muteColor : widgetIconColorOr(colorSpecFromRole(ColorRole::OnSurface)));
     m_glyph->measure(renderer);
@@ -189,8 +192,9 @@ void VolumeWidget::syncState(Renderer& renderer) {
   requestRedraw();
 }
 
-std::string VolumeWidget::glyphName(float volume, bool muted, const std::string& effectsProfile) const {
-  const char* dynamicGlyph = audioVolumeGlyph(volume, muted, m_target == VolumeWidgetTarget::Input);
+std::string
+VolumeWidget::glyphName(float volume, bool muted, const std::string& effectsProfile, bool headphones) const {
+  const char* dynamicGlyph = audioVolumeGlyph(volume, muted, m_target == VolumeWidgetTarget::Input, headphones);
   const std::string_view muteGlyph = m_target == VolumeWidgetTarget::Input ? "microphone-mute" : "volume-mute";
   const bool usingMuteGlyph = std::string_view{dynamicGlyph} == muteGlyph;
   if (usingMuteGlyph && !m_muteGlyphOverride.empty()) {

@@ -11,12 +11,15 @@ namespace {
 
 } // namespace
 
-const char* audioVolumeGlyph(float volume, bool muted, bool isInput) {
+const char* audioVolumeGlyph(float volume, bool muted, bool isInput, bool headphones) {
   if (isInput) {
     return (muted || displayedVolumePercent(volume) == 0) ? "microphone-mute" : "microphone";
   }
   if (muted || displayedVolumePercent(volume) == 0) {
     return "volume-mute";
+  }
+  if (headphones) {
+    return "headphones";
   }
   if (volume < 0.4F) {
     return "volume-low";

@@ -15,11 +15,11 @@ namespace {
 
   [[nodiscard]] bool volumeChanged(float a, float b) { return std::abs(a - b) > kVolumeChangeEpsilon; }
 
-  OsdContent makeOutputContent(float volume, bool muted) {
+  OsdContent makeOutputContent(float volume, bool muted, bool headphones) {
     const int percent = static_cast<int>(std::round(std::max(0.0F, volume) * 100.0F));
     return OsdContent{
         .kind = OsdKind::Volume,
-        .icon = audioVolumeGlyph(volume, muted, false),
+        .icon = audioVolumeGlyph(volume, muted, false, headphones),
         .value = std::to_string(percent) + "%",
         .progress = std::clamp(volume, 0.0F, 1.0F),
         .overLimit = percent > 100,
@@ -27,10 +27,10 @@ namespace {
     };
   }
 
-  OsdContent makeOutputNameContent(std::string name, bool muted) {
+  OsdContent makeOutputNameContent(std::string name, bool muted, bool headphones) {
     return OsdContent{
         .kind = OsdKind::Volume,
-        .icon = audioVolumeGlyph(1.0F, muted, false),
+        .icon = audioVolumeGlyph(1.0F, muted, false, headphones),
         .value = std::move(name),
         .showProgress = false,
         .inactive = muted,
@@ -70,6 +70,7 @@ void AudioOsd::primeFromService(const PipeWireService& service) {
     m_lastSinkVolume = sink->volume;
     m_lastSinkPercent = static_cast<int>(std::round(std::max(0.0F, sink->volume) * 100.0F));
     m_lastSinkMuted = sink->muted;
+    m_sinkHeadphones = sink->headphones;
   }
 
   if (const auto* source = service.defaultSource(); source != nullptr) {
@@ -91,7 +92,7 @@ void AudioOsd::showOutput(std::uint32_t sinkId, float volume, bool muted, bool p
   }
   m_suppressAutoInputOsdUntil = now + kSuppressInputOsdAfterOutput;
   if (m_overlay != nullptr) {
-    m_overlay->show(makeOutputContent(volume, muted));
+    m_overlay->show(makeOutputContent(volume, muted, m_sinkHeadphones));
     m_currentKind = OsdKind::Volume;
   }
   if (playFeedback && m_soundPlayer != nullptr && now - m_lastSoundAt >= kVolumeSoundCooldown) {
@@ -111,7 +112,7 @@ void AudioOsd::showOutputName(std::string name, bool muted) {
   }
   m_suppressAutoInputOsdUntil = now + kSuppressInputOsdAfterOutput;
   if (m_overlay != nullptr) {
-    m_overlay->show(makeOutputNameContent(std::move(name), muted));
+    m_overlay->show(makeOutputNameContent(std::move(name), muted, m_sinkHeadphones));
     m_currentKind = OsdKind::Volume;
   }
 }
@@ -150,7 +151,7 @@ void AudioOsd::showOutputValue(float volume, bool muted) {
   if (m_overlay == nullptr) {
     return;
   }
-  m_overlay->show(makeOutputContent(volume, muted));
+  m_overlay->show(makeOutputContent(volume, muted, m_sinkHeadphones));
   m_currentKind = OsdKind::Volume;
 }
 
@@ -171,6 +172,7 @@ void AudioOsd::onAudioStateChanged(const PipeWireService& service) {
   const float sinkVolume = sink != nullptr ? sink->volume : 0.0F;
   const int sinkPercent = sink != nullptr ? static_cast<int>(std::round(std::max(0.0F, sinkVolume) * 100.0F)) : 0;
   const bool sinkMuted = sink != nullptr ? sink->muted : false;
+  m_sinkHeadphones = sink != nullptr && sink->headphones;
 
   const std::uint32_t sourceId = source != nullptr ? source->id : 0;
   const std::string sourceName = source != nullptr ? audioDeviceLabel(*source) : "";
@@ -187,7 +189,7 @@ void AudioOsd::onAudioStateChanged(const PipeWireService& service) {
   // one already on screen; volume stays optimistic, only the mute state is reconciled.
   if (m_overlay != nullptr && m_overlay->isVisible()) {
     if (sink != nullptr && m_currentKind == OsdKind::Volume && sinkMuted != m_lastSinkMuted) {
-      m_overlay->show(makeOutputContent(sinkVolume, sinkMuted));
+      m_overlay->show(makeOutputContent(sinkVolume, sinkMuted, m_sinkHeadphones));
     } else if (source != nullptr && m_currentKind == OsdKind::Microphone && sourceMuted != m_lastSourceMuted) {
       m_overlay->show(makeInputContent(sourceVolume, sourceMuted));
     }

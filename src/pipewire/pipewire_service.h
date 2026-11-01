@@ -45,6 +45,7 @@ struct AudioNode {
   std::uint32_t channelCount = 0;
   bool isDefault = false;
   bool available = true; // false for a device whose active route is unavailable (e.g. unplugged HDMI)
+  bool headphones = false; // output plays through headphones or a headset (wired jack or Bluetooth)
 
   bool operator==(const AudioNode&) const = default;
 };
@@ -150,6 +151,7 @@ public:
     std::int32_t priority = 0;
     std::uint32_t available = SPA_PARAM_AVAILABILITY_unknown;
     bool muted = false;
+    bool headphones = false;
   };
   struct NodeData {
     PipeWireService* service = nullptr;
@@ -166,6 +168,8 @@ public:
     std::string iconName;
     std::string mediaClass;
     std::string linkGroup;
+    // Node props name a headphone/headset device (Bluetooth form factor or active-port icon).
+    bool headphonesDevice = false;
     std::string targetObject;
     bool nodePassive = false;
     bool streamCaptureSink = false;

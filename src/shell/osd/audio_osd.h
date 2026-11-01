@@ -34,6 +34,7 @@ private:
   float m_lastSinkVolume = -1.0F;
   int m_lastSinkPercent = -1;
   bool m_lastSinkMuted = false;
+  bool m_sinkHeadphones = false; // default sink output is headphones; picks the OSD glyph
   std::uint32_t m_lastSourceId = 0;
   float m_lastSourceVolume = -1.0F;
   int m_lastSourcePercent = -1;

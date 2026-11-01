@@ -47,7 +47,7 @@ private:
   void applyShadow();
   void updateFillClip();
   [[nodiscard]] const AudioNode* currentNode() const noexcept;
-  [[nodiscard]] std::string resolveGlyphName(float volume, bool muted) const;
+  [[nodiscard]] std::string resolveGlyphName(float volume, bool muted, bool headphones) const;
   [[nodiscard]] float maxVolume() const;
 
   PipeWireService* m_audio = nullptr;

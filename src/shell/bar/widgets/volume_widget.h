@@ -43,7 +43,8 @@ private:
   void doUpdate(Renderer& renderer) override;
   void syncState(Renderer& renderer);
   void syncWidgetVisibility(bool showWidget);
-  [[nodiscard]] std::string glyphName(float volume, bool muted, const std::string& effectsProfile = {}) const;
+  [[nodiscard]] std::string
+  glyphName(float volume, bool muted, const std::string& effectsProfile = {}, bool headphones = false) const;
 
   PipeWireService* m_audio = nullptr;
   EasyEffectsService* m_easyEffects = nullptr;
@@ -63,6 +64,7 @@ private:
   float m_lastVolume = -1.0F;
   std::string m_lastEffectsProfile;
   bool m_lastMuted = false;
+  bool m_lastHeadphones = false;
   bool m_isVertical = false;
   bool m_lastVertical = false;
   bool m_lastMicActive = false;

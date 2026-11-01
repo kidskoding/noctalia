@@ -561,6 +561,53 @@ namespace {
     return true;
   }
 
+  [[nodiscard]] bool isHeadphonesName(std::string_view value) {
+    return value == "headphones" || value == "headphone" || value == "headset" || value == "audio-headphones"
+        || value == "audio-headset";
+  }
+
+  // WirePlumber mirrors the active port's icon onto ALSA nodes (device.icon_name) and BlueZ nodes carry
+  // the device form factor, so either one marks the node as headphones.
+  [[nodiscard]] bool nodePropsAreHeadphones(const spa_dict* props) {
+    for (const char* key : {"device.icon_name", "device.icon-name", "device.form-factor"}) {
+      const char* value = spa_dict_lookup(props, key);
+      if (value != nullptr && isHeadphonesName(value)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // ParamRoute info is a struct: Int count, then count (key, value) string pairs.
+  [[nodiscard]] bool routeInfoIsHeadphones(const spa_pod* param) {
+    const spa_pod_prop* infoProp = spa_pod_find_prop(param, nullptr, SPA_PARAM_ROUTE_info);
+    if (infoProp == nullptr || !spa_pod_is_struct(&infoProp->value)) {
+      return false;
+    }
+    spa_pod_parser parser;
+    spa_pod_frame frame;
+    spa_pod_parser_pod(&parser, &infoProp->value);
+    std::int32_t count = 0;
+    if (spa_pod_parser_push_struct(&parser, &frame) < 0 || spa_pod_parser_get_int(&parser, &count) < 0) {
+      return false;
+    }
+    for (std::int32_t i = 0; i < count; ++i) {
+      const char* key = nullptr;
+      const char* value = nullptr;
+      if (spa_pod_parser_get_string(&parser, &key) < 0 || spa_pod_parser_get_string(&parser, &value) < 0) {
+        break;
+      }
+      if (key == nullptr || value == nullptr) {
+        continue;
+      }
+      const std::string_view k{key};
+      if ((k == "port.type" || k == "device.icon_name") && isHeadphonesName(value)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // Device ParamRoute updates are per-direction; applying every route's volume to all nodes on the same
   // device.id merges playback and capture on combo hardware (see activeRouteForDirection).
   [[nodiscard]] bool routeVolumeDirectionMatchesNode(std::string_view mediaClass, std::uint32_t routeDirection) {
@@ -1352,6 +1399,7 @@ void PipeWireService::onRegistryGlobal(std::uint32_t id, const char* type, std::
       nd->iconName = nd->applicationBinary;
     }
     nd->mediaClass = mediaClass;
+    nd->headphonesDevice = nodePropsAreHeadphones(props);
     applyStreamFilterPropsFromDict(*nd, props, false);
     const bool audioDeviceNode = mediaClass == "Audio/Sink" || mediaClass == "Audio/Source";
     applyVolumePropsFromDict(*nd, props, !audioDeviceNode);
@@ -1489,6 +1537,7 @@ void PipeWireService::onNodeInfo(std::uint32_t id, const pw_node_info* info) {
   const bool wasPrivacyCandidate = isPrivacyCandidateClass(nd.mediaClass);
   bool filterPropsChanged = false;
   bool profileDeviceChanged = false;
+  bool headphonesChanged = false;
 
   if (info->props != nullptr) {
     std::string mediaClass = dictGet(info->props, PW_KEY_MEDIA_CLASS);
@@ -1557,6 +1606,9 @@ void PipeWireService::onNodeInfo(std::uint32_t id, const pw_node_info* info) {
     if (!iconName.empty()) {
       nd.iconName = iconName;
     }
+    const bool headphonesDevice = nodePropsAreHeadphones(info->props);
+    headphonesChanged = headphonesDevice != nd.headphonesDevice;
+    nd.headphonesDevice = headphonesDevice;
     filterPropsChanged = applyStreamFilterPropsFromDict(nd, info->props, true);
     const bool audioDevice = nd.mediaClass == "Audio/Sink" || nd.mediaClass == "Audio/Source";
     applyVolumePropsFromDict(nd, info->props, !audioDevice);
@@ -1573,6 +1625,7 @@ void PipeWireService::onNodeInfo(std::uint32_t id, const pw_node_info* info) {
     recomputeEffectiveMute(nd);
   }
   if (profileDeviceChanged
+      || headphonesChanged
       || (isStream && (!wasStreamReady || filterPropsChanged))
       || wasProgramStream != isStream
       || wasPrivacyCandidate
@@ -1638,6 +1691,7 @@ void PipeWireService::onNodeParam(
       route.direction = routeDirection;
       route.priority = routePriority;
       route.available = routeAvailable;
+      route.headphones = routeInfoIsHeadphones(param);
       if (routeProps != nullptr) {
         const spa_pod_prop* prop = nullptr;
         const auto* propsObj = reinterpret_cast<const spa_pod_object*>(routeProps);
@@ -1809,6 +1863,7 @@ void PipeWireService::onDeviceParam(
   route.priority = routePriority;
   route.available = routeAvailable;
   route.muted = muted;
+  route.headphones = routeInfoIsHeadphones(param);
   upsertRoute(it->second.routes, route);
 
   // Device volume is authoritative through mixer-api; only route mute feeds effective mute here.
@@ -2006,6 +2061,13 @@ void PipeWireService::rebuildState() {
     }
     const AudioDeviceRoutes deviceRoutes = device != nullptr ? AudioDeviceRoutes{device->routes} : AudioDeviceRoutes{};
     node.available = !isDeviceNode || audioNodeRouteAvailable(nd->routes, deviceRoutes, wantDir, nd->profileDevice);
+    if (isDeviceNode) {
+      const auto* activeRoute = activeAudioDeviceRoute(nd->routes, wantDir, kAnyProfileDevice);
+      if (activeRoute == nullptr) {
+        activeRoute = activeAudioDeviceRoute(deviceRoutes, wantDir, nd->profileDevice);
+      }
+      node.headphones = nd->headphonesDevice || (activeRoute != nullptr && activeRoute->headphones);
+    }
 
     if (nd->mediaClass == "Audio/Sink") {
       node.isDefault = (nd->name == m_defaultSinkName);
