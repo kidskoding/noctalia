@@ -988,7 +988,7 @@ CairoTextRenderer::CacheEntry* CairoTextRenderer::lookupOrRasterize(
 
   PangoLayout* layout =
       buildLayout(contentScale, text, fontSize, font, maxWidth * contentScale, maxLines, align, ellipsize, useMarkup);
-  const bool tinted = !containsColorGlyph(layout);
+  const bool tinted = !useMarkup && !containsColorGlyph(layout);
   if (tinted) {
     key.colorRgba = 0U;
   }
