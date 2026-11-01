@@ -9,7 +9,9 @@
 #include "ui/style.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <cstdio>
 
 namespace {
   constexpr float kStackedPrimaryScale = 0.72F;
@@ -23,6 +25,29 @@ namespace {
       return {text, {}};
     }
     return {text.substr(0, newline), text.substr(newline + 1)};
+  }
+
+  // Lets markup reference theme colors: foreground='@green' becomes the active palette's hex.
+  std::string resolveRoleColors(std::string text) {
+    std::size_t pos = 0;
+    while ((pos = text.find('@', pos)) != std::string::npos) {
+      std::size_t end = pos + 1;
+      while (end < text.size() && (std::islower(static_cast<unsigned char>(text[end])) != 0 || text[end] == '_')) {
+        ++end;
+      }
+      const auto role = colorRoleFromToken(std::string_view(text).substr(pos + 1, end - pos - 1));
+      if (!role.has_value()) {
+        pos = end;
+        continue;
+      }
+      const Color& c = colorForRole(*role);
+      const auto toByte = [](float v) { return static_cast<unsigned int>(std::lround(std::clamp(v, 0.0F, 1.0F) * 255.0F)); };
+      char hex[8];
+      std::snprintf(hex, sizeof(hex), "#%02x%02x%02x", toByte(c.r), toByte(c.g), toByte(c.b));
+      text.replace(pos, end - pos, hex);
+      pos += 7;
+    }
+    return text;
   }
 } // namespace
 
@@ -121,6 +146,7 @@ void ClockWidget::create() {
 
   m_label->setUseMarkup(true);
   m_secondaryLabel->setUseMarkup(true);
+  m_paletteConn = paletteChanged().connect([this]() { requestUpdate(); });
 
   setRoot(std::move(area));
 }
@@ -202,7 +228,7 @@ void ClockWidget::doUpdate(Renderer& renderer) {
     return;
   }
 
-  auto text = formatTimeText();
+  auto text = resolveRoleColors(formatTimeText());
   if (text != m_lastText) {
     m_lastText = std::move(text);
   }

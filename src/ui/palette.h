@@ -39,6 +39,13 @@ enum class ColorRole : std::uint8_t {
   Scrim,
   Hover,
   OnHover,
+  Red,
+  Green,
+  Yellow,
+  Blue,
+  Magenta,
+  Cyan,
+  Gray,
 };
 
 struct ColorRoleToken {
@@ -46,7 +53,7 @@ struct ColorRoleToken {
   std::string_view token;
 };
 
-inline constexpr std::array<ColorRoleToken, 28> kColorRoleTokens = {{
+inline constexpr std::array<ColorRoleToken, 35> kColorRoleTokens = {{
     {ColorRole::Primary, "primary"},
     {ColorRole::OnPrimary, "on_primary"},
     {ColorRole::PrimaryContainer, "primary_container"},
@@ -75,6 +82,13 @@ inline constexpr std::array<ColorRoleToken, 28> kColorRoleTokens = {{
     {ColorRole::Scrim, "scrim"},
     {ColorRole::Hover, "hover"},
     {ColorRole::OnHover, "on_hover"},
+    {ColorRole::Red, "red"},
+    {ColorRole::Green, "green"},
+    {ColorRole::Yellow, "yellow"},
+    {ColorRole::Blue, "blue"},
+    {ColorRole::Magenta, "magenta"},
+    {ColorRole::Cyan, "cyan"},
+    {ColorRole::Gray, "gray"},
 }};
 
 [[nodiscard]] constexpr Color clearColor() noexcept { return rgba(0.0F, 0.0F, 0.0F, 0.0F); }
@@ -132,6 +146,13 @@ struct Palette {
   Color scrim;
   Color hover;
   Color onHover;
+  Color red;
+  Color green;
+  Color yellow;
+  Color blue;
+  Color magenta;
+  Color cyan;
+  Color gray;
 
   bool operator==(const Palette&) const = default;
 };

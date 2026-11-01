@@ -88,6 +88,20 @@ const Color& colorForRole(ColorRole role) noexcept {
     return palette.hover;
   case ColorRole::OnHover:
     return palette.onHover;
+  case ColorRole::Red:
+    return palette.red;
+  case ColorRole::Green:
+    return palette.green;
+  case ColorRole::Yellow:
+    return palette.yellow;
+  case ColorRole::Blue:
+    return palette.blue;
+  case ColorRole::Magenta:
+    return palette.magenta;
+  case ColorRole::Cyan:
+    return palette.cyan;
+  case ColorRole::Gray:
+    return palette.gray;
   }
 
   return palette.onSurface;
@@ -209,5 +223,12 @@ Palette lerpPalette(const Palette& a, const Palette& b, float t) {
       .scrim = lerpColor(a.scrim, b.scrim, t),
       .hover = lerpColor(a.hover, b.hover, t),
       .onHover = lerpColor(a.onHover, b.onHover, t),
+      .red = lerpColor(a.red, b.red, t),
+      .green = lerpColor(a.green, b.green, t),
+      .yellow = lerpColor(a.yellow, b.yellow, t),
+      .blue = lerpColor(a.blue, b.blue, t),
+      .magenta = lerpColor(a.magenta, b.magenta, t),
+      .cyan = lerpColor(a.cyan, b.cyan, t),
+      .gray = lerpColor(a.gray, b.gray, t),
   };
 }

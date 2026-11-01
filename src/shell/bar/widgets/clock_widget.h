@@ -1,6 +1,7 @@
 #pragma once
 
 #include "shell/bar/widget.h"
+#include "ui/signal.h"
 
 #include <cstdint>
 #include <string>
@@ -42,4 +43,5 @@ private:
   std::string m_lastPrimaryText;
   std::string m_lastSecondaryText;
   std::string m_lastTooltipText;
+  Signal<>::ScopedConnection m_paletteConn;
 };

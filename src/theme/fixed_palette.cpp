@@ -21,6 +21,10 @@ namespace noctalia::theme {
       return rgbHex(it->second & 0x00FFFFFFU);
     }
 
+    ::Color tokenToColorOr(const TokenMap& tokens, std::string_view key, std::string_view fallbackKey) {
+      return tokens.contains(std::string(key)) ? tokenToColor(tokens, key) : tokenToColor(tokens, fallbackKey);
+    }
+
     Color toUiColor(const ::Color& color) {
       auto toByte = [](float value) { return static_cast<int>(std::clamp(value, 0.0F, 1.0F) * 255.0F + 0.5F); };
       return Color(toByte(color.r), toByte(color.g), toByte(color.b));
@@ -420,6 +424,13 @@ namespace noctalia::theme {
         .scrim = tokenToColor(t, "scrim"),
         .hover = tokenToColor(t, "hover"),
         .onHover = tokenToColor(t, "on_hover"),
+        .red = tokenToColorOr(t, "terminal_bright_red", "error"),
+        .green = tokenToColorOr(t, "terminal_bright_green", "primary"),
+        .yellow = tokenToColorOr(t, "terminal_bright_yellow", "secondary"),
+        .blue = tokenToColorOr(t, "terminal_bright_blue", "tertiary"),
+        .magenta = tokenToColorOr(t, "terminal_bright_magenta", "tertiary"),
+        .cyan = tokenToColorOr(t, "terminal_bright_cyan", "tertiary"),
+        .gray = tokenToColorOr(t, "terminal_bright_black", "outline"),
     };
   }
 

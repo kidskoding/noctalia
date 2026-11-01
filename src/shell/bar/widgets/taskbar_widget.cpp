@@ -3700,6 +3700,14 @@ ColorRole TaskbarWidget::onRoleForFill(ColorRole fill) {
     return ColorRole::OnTertiaryContainer;
   case ColorRole::ErrorContainer:
     return ColorRole::OnErrorContainer;
+  case ColorRole::Red:
+  case ColorRole::Green:
+  case ColorRole::Yellow:
+  case ColorRole::Blue:
+  case ColorRole::Magenta:
+  case ColorRole::Cyan:
+  case ColorRole::Gray:
+    return ColorRole::Surface;
   case ColorRole::Surface:
   case ColorRole::SurfaceContainerLow:
   case ColorRole::SurfaceContainer:
