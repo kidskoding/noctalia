@@ -580,6 +580,7 @@ LockSurface::LockSurface(WaylandConnection& connection, ConfigService* config) :
 }
 
 LockSurface::~LockSurface() {
+  m_loginClockTimer.stop();
   invalidateSleepFrame();
   m_aliveGuard.reset();
   releaseCaptureTextures();
@@ -669,6 +670,11 @@ void LockSurface::setLockedState(bool locked) {
     return;
   }
   m_locked = locked;
+  if (m_locked && resolveLoginStyle().showClock) {
+    m_loginClockTimer.startRepeating(std::chrono::seconds(1), [this]() { requestUpdate(); });
+  } else {
+    m_loginClockTimer.stop();
+  }
   if (m_locked) {
     // Never carry a revealed password across lock cycles.
     if (m_passwordField != nullptr) {
@@ -1336,7 +1342,7 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
   m_loginPanel->setJustify(regular ? FlexJustify::Start : FlexJustify::Center);
 
   const bool mediaReady = m_mpris != nullptr && m_mpris->activePlayer().has_value();
-  const bool weatherReady = m_weather != nullptr && m_weather->enabled() && m_weather->hasData();
+  const bool weatherReady = loginStyle.showClock || (m_weather != nullptr && m_weather->enabled() && m_weather->hasData());
   const auto extras = lockscreen_login_box::resolveInfoExtrasVisibility(regular, loginStyle, mediaReady, weatherReady);
   const bool showMedia = extras.showMedia;
   const bool showWeather = extras.showWeather;
@@ -1363,7 +1369,7 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
   const float forecastGlyphSize = kForecastGlyphSize * contentScale;
   const float sessionGlyphSize = 16.0F * contentScale;
 
-  forecastDaysFit = showWeather
+  forecastDaysFit = showWeather && !loginStyle.showClock
       ? fitForecastDays(renderer, weatherBudget, weatherGlyphSize, forecastGlyphSize, captionSize, maxForecastDays)
       : 0;
   const bool showForecast = forecastDaysFit > 0;
@@ -1457,7 +1463,7 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
   if (m_weatherMeta != nullptr) {
     m_weatherMeta->setMaxWidth(weatherTextMax);
     m_weatherMeta->setEllipsize(TextEllipsize::End);
-    m_weatherMeta->setVisible(showWeather && weatherBudget >= 160.0F && !m_weatherMeta->text().empty());
+    m_weatherMeta->setVisible(showWeather && (loginStyle.showClock || weatherBudget >= 160.0F) && !m_weatherMeta->text().empty());
   }
 
   // Scale info / status / password / session by the same factor so extra panel
@@ -1751,7 +1757,7 @@ void LockSurface::syncRegularExtras(Renderer& renderer) {
   const bool regular =
       m_locked && !m_blackout && isLoginBoxEnabled() && style.layout == lockscreen_login_box::LayoutMode::Regular;
   const bool mediaReady = m_mpris != nullptr && m_mpris->activePlayer().has_value();
-  const bool weatherReady = m_weather != nullptr && m_weather->enabled() && m_weather->hasData();
+  const bool weatherReady = style.showClock || (m_weather != nullptr && m_weather->enabled() && m_weather->hasData());
   const auto extras = lockscreen_login_box::resolveInfoExtrasVisibility(regular, style, mediaReady, weatherReady);
 
   if (m_mediaBlock != nullptr && extras.showMedia && m_mediaTitle != nullptr && m_mediaArtist != nullptr) {
@@ -1814,7 +1820,12 @@ void LockSurface::syncRegularExtras(Renderer& renderer) {
       std::string metaText;
       std::vector<std::tuple<std::string, std::string, std::string>> forecast;
 
-      if (weatherReady) {
+      if (style.showClock) {
+        glyphName = "clock";
+        tempText = formatLocalTime("{:%-I:%M %p}");
+        metaText = formatLocalTime("{:%a, %b %-d}");
+        fingerprint = tempText + "|" + metaText;
+      } else if (weatherReady) {
         const auto& snapshot = m_weather->snapshot();
         glyphName = WeatherService::glyphForCode(snapshot.current.weatherCode, snapshot.current.isDay);
         const int temp = static_cast<int>(std::lround(m_weather->displayTemperature(snapshot.current.temperatureC)));

@@ -56,6 +56,7 @@ namespace lockscreen_login_box {
     bool showSessionButtons = true;
     bool showMedia = true;
     bool showWeather = true;
+    bool showClock = false;
     bool showUnlockHint = true;
   };
 

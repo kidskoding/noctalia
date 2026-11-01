@@ -115,7 +115,7 @@ namespace lockscreen_login_box {
       return {};
     }
     const bool mediaConfigured = style.showMedia;
-    const bool weatherConfigured = style.showWeather;
+    const bool weatherConfigured = style.showWeather || style.showClock;
     // Hide an unavailable side when the other can fill the row. If both are configured
     // off, the info strip stays empty and is collapsed by the layout.
     const bool showWeather = weatherConfigured && (weatherReady || !mediaConfigured);
@@ -175,7 +175,7 @@ namespace lockscreen_login_box {
     };
   }
 
-  bool styleShowsInfoExtras(const LoginBoxStyle& style) noexcept { return style.showMedia || style.showWeather; }
+  bool styleShowsInfoExtras(const LoginBoxStyle& style) noexcept { return style.showMedia || style.showWeather || style.showClock; }
 
   float minPanelHeight(LayoutMode layout, bool showSessionButtons, bool showInfoExtras) {
     const float pad = Style::spaceLg * 2.0F;
@@ -318,6 +318,7 @@ namespace lockscreen_login_box {
     style.showSessionButtons = readBool(settings, kShowSessionButtonsKey, style.showSessionButtons);
     style.showMedia = readBool(settings, kShowMediaKey, style.showMedia);
     style.showWeather = readBool(settings, kShowWeatherKey, style.showWeather);
+    style.showClock = readBool(settings, "show_clock", style.showClock);
     style.showUnlockHint = readBool(settings, kShowUnlockHintKey, style.showUnlockHint);
     return style;
   }

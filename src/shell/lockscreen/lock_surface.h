@@ -2,6 +2,7 @@
 
 #include "capture/screencopy_capture.h"
 #include "config/config_service.h"
+#include "core/timer_manager.h"
 #include "render/animation/animation_manager.h"
 #include "render/core/blur_cache.h"
 #include "render/core/color.h"
@@ -161,6 +162,7 @@ private:
   // Declared before m_root so it outlives the scene: ~Node cancels its animations through this manager.
   AnimationManager m_animations;
   Node m_root;
+  Timer m_loginClockTimer;
   Node* m_backgroundLayer = nullptr;
   Node* m_widgetLayer = nullptr;
   LockscreenTransitionCover* m_transitionCover = nullptr;
