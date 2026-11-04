@@ -132,7 +132,8 @@ private:
   void schedulePositionRefreshRetry(
       const std::string& busName, std::chrono::milliseconds fallback, bool usePropertiesBackoff
   );
-  void refreshPlayerPosition(const std::string& busName, bool notifyChange);
+  void refreshPlayerPosition(const std::string& busName, bool notifyChange, bool onlyIfDrifted = false);
+  void pollPlayingPositions();
   void applyPositionSample(const std::string& busName, int64_t rawPositionUs, bool notifyChange);
   void clearPlayerState(const std::string& busName);
   void removePlayer(const std::string& busName);
@@ -234,6 +235,7 @@ private:
   std::function<void()> m_changeCallback;
   int m_startupRediscoveryPassesRemaining = 4;
   Timer m_recoveryTimer;
+  Timer m_positionPollTimer;
   std::chrono::milliseconds m_recoveryBackoffMs{500};
   bool m_discoveryDrainScheduled = false;
 };
