@@ -27,6 +27,10 @@ int main() {
   ok = expectGlyph(audioVolumeGlyph(0.8F, true, false), "volume-mute", "muted speaker") && ok;
   ok = expectGlyph(audioVolumeGlyph(0.0F, false, true), "microphone-mute", "zero microphone volume") && ok;
   ok = expectGlyph(audioVolumeGlyph(0.8F, true, true), "microphone-mute", "muted microphone") && ok;
+  ok = expectGlyph(audioVolumeGlyph(0.8F, false, false, true), "headphones", "headphones output") && ok;
+  ok = expectGlyph(audioVolumeGlyph(0.8F, true, false, true), "headphones-off", "muted headphones") && ok;
+  ok = expectGlyph(audioVolumeGlyph(0.0F, false, false, true), "headphones-off", "zero headphones volume") && ok;
+  ok = expectGlyph(audioVolumeGlyph(0.0F, true, true, true), "microphone-mute", "muted mic ignores headphones") && ok;
 
   return ok ? 0 : 1;
 }

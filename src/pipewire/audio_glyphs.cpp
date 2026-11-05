@@ -16,7 +16,7 @@ const char* audioVolumeGlyph(float volume, bool muted, bool isInput, bool headph
     return (muted || displayedVolumePercent(volume) == 0) ? "microphone-mute" : "microphone";
   }
   if (muted || displayedVolumePercent(volume) == 0) {
-    return "volume-mute";
+    return headphones ? "headphones-off" : "volume-mute";
   }
   if (headphones) {
     return "headphones";

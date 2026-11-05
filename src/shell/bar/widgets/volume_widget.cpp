@@ -195,8 +195,8 @@ void VolumeWidget::syncState(Renderer& renderer) {
 std::string
 VolumeWidget::glyphName(float volume, bool muted, const std::string& effectsProfile, bool headphones) const {
   const char* dynamicGlyph = audioVolumeGlyph(volume, muted, m_target == VolumeWidgetTarget::Input, headphones);
-  const std::string_view muteGlyph = m_target == VolumeWidgetTarget::Input ? "microphone-mute" : "volume-mute";
-  const bool usingMuteGlyph = std::string_view{dynamicGlyph} == muteGlyph;
+  const std::string_view glyph{dynamicGlyph};
+  const bool usingMuteGlyph = glyph == "microphone-mute" || glyph == "volume-mute" || glyph == "headphones-off";
   if (usingMuteGlyph && !m_muteGlyphOverride.empty()) {
     return m_muteGlyphOverride;
   }
