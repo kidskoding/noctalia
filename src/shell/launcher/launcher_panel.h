@@ -11,6 +11,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 class ContextMenuPopup;
@@ -139,12 +140,18 @@ private:
   void showProviderOverview();
   void showSessionActions();
   [[nodiscard]] bool usesBrowserLayout() const;
+  void prewarmAppIcons();
+  [[nodiscard]] const std::string& resolveResultIcon(const std::string& iconName, int targetSize);
 
   std::vector<std::unique_ptr<LauncherProvider>> m_providers;
   std::vector<LauncherResult> m_results;
   std::vector<LauncherResult> m_allResults;
   UsageTracker m_usageTracker;
   IconResolver m_iconResolver;
+  std::unordered_map<std::string, std::string> m_prewarmedIcons;
+  std::uint64_t m_prewarmedIconsGeneration = 0;
+  int m_prewarmedIconsSize = 0;
+  std::shared_ptr<bool> m_lifetime = std::make_shared<bool>(true);
 
   Flex* m_container = nullptr;
   Input* m_input = nullptr;

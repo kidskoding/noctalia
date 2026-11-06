@@ -16,6 +16,7 @@
 #include "render/scene/node.h"
 #include "shell/dock/pinned_apps.h"
 #include "shell/panel/panel_manager.h"
+#include "shell/panel/panel_surface_style.h"
 #include "shell/profile/avatar_path.h"
 #include "system/desktop_entry.h"
 #include "system/distro_info.h"
@@ -38,6 +39,7 @@
 #include <functional>
 #include <memory>
 #include <string_view>
+#include <thread>
 #include <tuple>
 #include <utility>
 
@@ -53,6 +55,7 @@ namespace {
   constexpr std::int32_t kCompactNavigationWidth = 680;
   constexpr float kLauncherAvatarSize = 44.0F;
   constexpr std::string_view kApplicationsProviderId = "Applications";
+  constexpr std::string_view kDefaultAppIconName = "application-x-executable";
   constexpr std::string_view kSessionProviderId = "Session";
   constexpr double kUsageScorePerCount = 0.1;
   constexpr double kTypedUsageScoreCap = 0.5;
@@ -1533,7 +1536,48 @@ void LauncherPanel::addProvider(std::unique_ptr<LauncherProvider> provider) {
   provider->setActivationDoneCallback([this, providerPtr](const std::string& resultId, bool copied) {
     finishActivation(*providerPtr, resultId, copied);
   });
+  const bool applications = provider->id() == kApplicationsProviderId;
   m_providers.push_back(std::move(provider));
+  if (applications) {
+    prewarmAppIcons();
+  }
+}
+
+void LauncherPanel::prewarmAppIcons() {
+  std::vector<std::string> names{std::string(kDefaultAppIconName)};
+  for (const auto& entry : desktopEntries()) {
+    if (!entry.icon.empty()) {
+      names.push_back(entry.icon);
+    }
+  }
+  const int size = static_cast<int>(std::round(launcherIconSize(
+      launcherListStyleFrom(m_config, shell::panel_surface::contentScale(m_config), panelCardOpacity())
+  )));
+  std::thread([this, names = std::move(names), size, lifetime = std::weak_ptr<bool>(m_lifetime)] {
+    IconResolver resolver(true);
+    const std::uint64_t generation = IconResolver::themeGeneration();
+    std::unordered_map<std::string, std::string> resolved;
+    for (const auto& name : names) {
+      resolved.try_emplace(name, resolver.resolve(name, size));
+    }
+    DeferredCall::callLater([this, lifetime, resolved = std::move(resolved), size, generation] mutable {
+      if (lifetime.expired()) {
+        return;
+      }
+      m_prewarmedIcons = std::move(resolved);
+      m_prewarmedIconsSize = size;
+      m_prewarmedIconsGeneration = generation;
+    });
+  }).detach();
+}
+
+const std::string& LauncherPanel::resolveResultIcon(const std::string& iconName, int targetSize) {
+  if (targetSize == m_prewarmedIconsSize && m_prewarmedIconsGeneration == IconResolver::themeGeneration()) {
+    if (const auto it = m_prewarmedIcons.find(iconName); it != m_prewarmedIcons.end()) {
+      return it->second;
+    }
+  }
+  return m_iconResolver.resolve(iconName, targetSize);
 }
 
 void LauncherPanel::clearDynamicProviders() {
@@ -2711,11 +2755,11 @@ void LauncherPanel::onInputChanged(const std::string& text) {
   );
   for (auto& result : m_allResults) {
     if (result.iconPath.empty() && !result.iconName.empty()) {
-      const std::string& resolved = m_iconResolver.resolve(result.iconName, iconTargetSize);
+      const std::string& resolved = resolveResultIcon(result.iconName, iconTargetSize);
       if (!resolved.empty()) {
         result.iconPath = resolved;
-      } else if (result.iconName != "application-x-executable") {
-        const std::string& fallback = m_iconResolver.resolve("application-x-executable", iconTargetSize);
+      } else if (result.iconName != kDefaultAppIconName) {
+        const std::string& fallback = resolveResultIcon(std::string(kDefaultAppIconName), iconTargetSize);
         if (!fallback.empty()) {
           result.iconPath = fallback;
         }
