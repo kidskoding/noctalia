@@ -1772,6 +1772,21 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
       );
     }
 
+    {
+      // temporary: trace why header columns are missing; logs only on change
+      static std::string lastHeaderTrace;
+      const std::string trace = std::format(
+          "DEBUGHDR cols={} hw={:.0f} cw={:.0f} curW={:.0f} curH={:.0f} info={:.0f} user={} name='{}' batVis={} "
+          "batLblVis={} bat='{}' batX={:.0f} batW={:.0f} statusX={:.0f}",
+          headerColumns, headerWidth, columnWidth, m_weatherCurrent->width(), m_weatherCurrent->height(), rows.info,
+          showHeaderUser, m_user, m_loginBatteryRow->visible(), m_loginBatteryLabel->visible(),
+          m_loginBatteryLabel->text(), m_loginBatteryRow->x(), m_loginBatteryRow->width(), statusColumnX
+      );
+      if (trace != lastHeaderTrace) {
+        lastHeaderTrace = trace;
+        kLog.info("{}", trace);
+      }
+    }
     m_headerUser->setVisible(showHeaderUser);
     if (showHeaderUser) {
       const float avatarSize = kHeaderAvatarSize * contentScale;
