@@ -297,7 +297,7 @@ void Application::initLockScreenAndSession() {
       m_wayland, &m_renderContext, &m_configService, &m_sharedTextureCache, m_systemBus.get(), &m_compositorPlatform
   );
   m_lockScreen.setLoginBoxServices(&m_sessionActionRunner, m_mprisService.get(), &m_weatherService, &m_httpClient, m_upowerService.get(),
-      m_networkService.get(), &m_notificationManager);
+      m_networkService.get(), &m_notificationManager, m_pipewireService.get());
   m_wallpaper.setAutomationGate([this] {
     if (m_lockScreen.isActive()) {
       return false;
@@ -1143,6 +1143,9 @@ void Application::initWidgetControllersAndCallbacks() {
       }
       m_bar.refresh();
       m_desktopWidgetsController.requestUpdate();
+      if (m_lockScreen.isActive()) {
+        m_lockScreen.requestUpdate();
+      }
       if (shouldRefreshControlCenter()) {
         m_panelManager.refresh();
       }

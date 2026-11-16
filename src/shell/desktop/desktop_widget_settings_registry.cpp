@@ -481,6 +481,7 @@ namespace desktop_settings {
       add(boolSpec("show_user", false));
       add(boolSpec("show_wifi", false));
       add(boolSpec("show_notifications", false));
+      add(boolSpec("show_audio", true));
       add(boolSpec("show_login_button", true));
       add(boolSpec("show_password_reveal", true));
       add(boolSpec("show_unlock_hint", true));

@@ -19,6 +19,10 @@
 #include "render/scene/wallpaper_node.h"
 #include "shell/lockscreen/lockscreen_login_box.h"
 #include "shell/lockscreen/lockscreen_session_actions.h"
+#include "shell/lockscreen/lockscreen_status_text.h"
+#include "pipewire/audio_glyphs.h"
+#include "pipewire/pipewire_service.h"
+#include "system/icon_resolver.h"
 #include "shell/lockscreen/lockscreen_widgets_host.h"
 #include "shell/profile/avatar_path.h"
 #include "shell/session/session_action_meta.h"
@@ -443,23 +447,56 @@ LockSurface::LockSurface(WaylandConnection& connection, ConfigService* config) :
       .maxLines = 1,
       .textAlign = TextAlign::Center,
   }));
-  m_weatherCurrent->addChild(ui::row({
-      .out = &m_headerStatusRow,
+  const auto addHeaderStat = [this](HeaderStat& stat, const char* glyph) {
+    m_weatherCurrent->addChild(ui::row({
+        .out = &stat.row,
+        .align = FlexAlign::Center,
+        .gap = Style::spaceSm,
+        .visible = false,
+        .participatesInLayout = false,
+    }));
+    stat.row->addChild(ui::glyph({
+        .out = &stat.glyph,
+        .glyph = glyph,
+        .glyphSize = Style::baseGlyphSize,
+        .color = colorSpecFromRole(ColorRole::Secondary),
+    }));
+    stat.row->addChild(ui::column({
+        .out = &stat.text,
+        .align = FlexAlign::Start,
+        .gap = Style::spaceXs,
+    }));
+    stat.text->addChild(ui::label({
+        .out = &stat.value,
+        .fontSize = Style::fontSizeBody,
+        .color = colorSpecFromRole(ColorRole::OnSurface),
+        .maxLines = 1,
+    }));
+    stat.text->addChild(ui::label({
+        .out = &stat.caption,
+        .fontSize = Style::fontSizeCaption,
+        .color = colorSpecFromRole(ColorRole::OnSurfaceVariant),
+        .maxLines = 1,
+    }));
+  };
+  addHeaderStat(m_headerWifi, "wifi-off");
+  addHeaderStat(m_headerNotifications, "bell");
+  addHeaderStat(m_headerAudio, "volume-high");
+  m_headerNotifications.text->addChild(ui::row({
+      .out = &m_headerNotificationIcons,
       .align = FlexAlign::Center,
-      .gap = Style::spaceMd,
+      .gap = Style::spaceXs,
       .visible = false,
-      .participatesInLayout = false,
-  }, ui::glyph({
-      .out = &m_headerWifiGlyph,
-      .glyph = "wifi-off",
-      .glyphSize = Style::baseGlyphSize,
-      .color = colorSpecFromRole(ColorRole::OnSurface),
-  }), ui::glyph({
-      .out = &m_headerBellGlyph,
-      .glyph = "bell",
-      .glyphSize = Style::baseGlyphSize,
-      .color = colorSpecFromRole(ColorRole::OnSurface),
-  })));
+  }));
+  for (auto& icon : m_headerNotificationIconImages) {
+    m_headerNotificationIcons->addChild(ui::image({
+        .out = &icon,
+        .fit = ImageFit::Contain,
+        .width = Style::fontSizeCaption,
+        .height = Style::fontSizeCaption,
+    }));
+  }
+  m_iconResolver = std::make_unique<IconResolver>();
 
   m_weatherBlock->addChild(
       ui::flex(
@@ -708,7 +745,8 @@ LockSurface::~LockSurface() {
 
 void LockSurface::setLoginBoxServices(
     SessionActionRunner* sessionActions, MprisService* mpris, const WeatherService* weather, HttpClient* httpClient, UPowerService* upower,
-    const INetworkService* network, const NotificationManager* notifications
+    const INetworkService* network, const NotificationManager* notifications,
+      const PipeWireService* audio
 ) {
   m_sessionActions = sessionActions;
   m_mpris = mpris;
@@ -717,6 +755,7 @@ void LockSurface::setLoginBoxServices(
   m_upower = upower;
   m_network = network;
   m_notifications = notifications;
+  m_audio = audio;
   rebuildSessionButtons();
   requestUpdate();
 }
@@ -1674,19 +1713,24 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
   const bool showHeaderUser = structuredHeader && loginStyle.showUser;
   const bool showHeaderTime = loginStyle.showTime;
   const bool showHeaderWifi = structuredHeader && loginStyle.showWifi && m_network != nullptr;
-  // shortcut: the bell is read on each lock redraw (clock tick at the latest), not pushed; hook the manager's state callback if it must be instant
-  const bool notificationsDnd = m_notifications != nullptr && m_notifications->doNotDisturb();
-  const bool notificationsUnread = m_notifications != nullptr && m_notifications->hasUnreadNotificationHistory();
-  const bool showHeaderBell = structuredHeader && loginStyle.showNotifications && (notificationsUnread || notificationsDnd);
-  const bool showHeaderStatus = showHeaderWifi || showHeaderBell;
-  const int headerColumns = 1 + (showHeaderUser ? 1 : 0) + (showHeaderTime ? 1 : 0) + (showHeaderStatus ? 1 : 0);
-  const float headerBaseWidth = headerColumns >= 4 ? 760.0F : (headerColumns == 3 ? 620.0F : 460.0F);
+  // shortcut: notifications are read on each lock redraw (clock tick at the latest), not pushed; hook the manager's state callback if it must be instant
+  const bool showHeaderNotifications = structuredHeader && loginStyle.showNotifications && m_notifications != nullptr;
+  const AudioNode* defaultSink = m_audio != nullptr ? m_audio->defaultSink() : nullptr;
+  const bool showHeaderAudio = structuredHeader && loginStyle.showAudio && defaultSink != nullptr;
+  const int headerColumns = 1 + (showHeaderUser ? 1 : 0) + (showHeaderTime ? 1 : 0) + (showHeaderWifi ? 1 : 0)
+      + (showHeaderNotifications ? 1 : 0) + (showHeaderAudio ? 1 : 0);
+  const float headerBaseWidth = headerColumns >= 5 ? 900.0F
+      : headerColumns == 4                         ? 760.0F
+      : headerColumns == 3                         ? 620.0F
+                                                   : 460.0F;
   const float headerWidth = std::min(contentWidth, headerBaseWidth * contentScale);
   if (m_weatherCurrent != nullptr) {
     m_loginClockRow->setParticipatesInLayout(!structuredHeader);
     m_loginClockRow->setVisible(!structuredHeader || showHeaderTime);
     m_loginBatteryRow->setParticipatesInLayout(!structuredHeader);
-    m_headerStatusRow->setVisible(showHeaderStatus);
+    m_headerWifi.row->setVisible(showHeaderWifi);
+    m_headerNotifications.row->setVisible(showHeaderNotifications);
+    m_headerAudio.row->setVisible(showHeaderAudio);
     m_weatherCurrent->setMinWidth(structuredHeader ? headerWidth : 0.0F);
     m_weatherCurrent->setMaxWidth(structuredHeader ? headerWidth : 0.0F);
     m_weatherCurrent->setMinHeight(structuredHeader ? rows.info : 0.0F);
@@ -1696,17 +1740,34 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
   m_loginPanel->arrange(renderer, LayoutRect{panelX, panelY, panelWidth, panelHeight});
 
   if (structuredHeader) {
-    const float columnGap = Style::spaceLg * 1.5F * contentScale;
+    const float columnGap = (headerColumns >= 5 ? Style::spaceMd : Style::spaceLg * 1.5F) * contentScale;
     const bool showCapsLock = loginStyle.showCapsLock && m_capsLock;
     const float groupHeight = rows.info - (showCapsLock ? headerWarningHeight : 0.0F);
+    // network names run long, so the wifi column gets a wider share
+    constexpr float kWifiColumnShare = 1.5F;
     const float columnCount = static_cast<float>(headerColumns);
-    const float columnWidth = std::max(0.0F, (headerWidth - columnGap * (columnCount - 1.0F)) / columnCount);
-    const float clockColumnX = showHeaderUser ? columnWidth + columnGap : 0.0F;
-    const float statusColumnX = showHeaderTime ? clockColumnX + columnWidth + columnGap : clockColumnX;
-    const float batteryColumnX = showHeaderStatus ? statusColumnX + columnWidth + columnGap : statusColumnX;
+    const float columnUnits = columnCount + (showHeaderWifi ? kWifiColumnShare - 1.0F : 0.0F);
+    const float columnWidth = std::max(0.0F, (headerWidth - columnGap * (columnCount - 1.0F)) / columnUnits);
+    const float wifiColumnWidth = columnWidth * kWifiColumnShare;
+    float nextColumnX = showHeaderUser ? columnWidth + columnGap : 0.0F;
+    const auto takeColumn = [&](bool shown, float width) {
+      const float x = nextColumnX;
+      if (shown) {
+        nextColumnX += width + columnGap;
+      }
+      return x;
+    };
+    const float clockColumnX = takeColumn(showHeaderTime, columnWidth);
+    const float wifiColumnX = takeColumn(showHeaderWifi, wifiColumnWidth);
+    const float notificationsColumnX = takeColumn(showHeaderNotifications, columnWidth);
+    const float audioColumnX = takeColumn(showHeaderAudio, columnWidth);
+    const float batteryColumnX = takeColumn(true, columnWidth);
     const float iconSize = Style::fontSizeBody * contentScale;
+    const float statGlyphSize = Style::fontSizeBody * 1.5F * contentScale;
+    const float statValueSize = bodySize;
     const float iconGap = Style::spaceSm * contentScale;
     const float textWidth = std::max(0.0F, columnWidth - iconSize - iconGap);
+    const float statTextWidth = std::max(0.0F, columnWidth - statGlyphSize - iconGap);
 
     m_weatherGlyph->setGlyphSize(iconSize);
     m_weatherTextColumn->setGap(Style::spaceXs * contentScale);
@@ -1723,9 +1784,10 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
       );
     }
 
-    m_loginBatteryLabel->setMaxWidth(textWidth);
-    m_headerBatteryStatus->setMaxWidth(textWidth);
-    m_loginBatteryGlyph->setGlyphSize(iconSize);
+    m_loginBatteryLabel->setFontSize(statValueSize);
+    m_loginBatteryLabel->setMaxWidth(statTextWidth);
+    m_headerBatteryStatus->setMaxWidth(statTextWidth);
+    m_loginBatteryGlyph->setGlyphSize(statGlyphSize);
     m_loginBatteryRow->setGap(iconGap);
     m_loginBatteryRow->setMaxWidth(columnWidth);
     m_loginBatteryRow->layout(renderer);
@@ -1734,27 +1796,91 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
         std::max(0.0F, (groupHeight - m_loginBatteryRow->height()) * 0.5F)
     );
 
-    if (showHeaderStatus) {
-      m_headerWifiGlyph->setVisible(showHeaderWifi);
-      if (showHeaderWifi) {
-        m_headerWifiGlyph->setGlyph(network_display::glyphForState(m_network->state()));
-        m_headerWifiGlyph->setGlyphSize(iconSize);
-      }
-      m_headerBellGlyph->setVisible(showHeaderBell);
-      if (showHeaderBell) {
-        m_headerBellGlyph->setGlyph(notificationsDnd ? "bell-off" : "bell");
-        m_headerBellGlyph->setColor(colorSpecFromRole(
-            notificationsUnread && !notificationsDnd ? ColorRole::Primary : ColorRole::OnSurfaceVariant
-        ));
-        m_headerBellGlyph->setGlyphSize(iconSize);
-      }
-      m_headerStatusRow->setGap(Style::spaceMd * contentScale);
-      m_headerStatusRow->setMaxWidth(columnWidth);
-      m_headerStatusRow->layout(renderer);
-      m_headerStatusRow->setPosition(
-          statusColumnX + (columnWidth - m_headerStatusRow->width()) * 0.5F,
-          std::max(0.0F, (groupHeight - m_headerStatusRow->height()) * 0.5F)
+    const auto placeStat = [&](HeaderStat& stat, float columnX, float width) {
+      const float textMax = std::max(0.0F, width - statGlyphSize - iconGap);
+      stat.glyph->setGlyphSize(statGlyphSize);
+      stat.text->setGap(Style::spaceXs * contentScale);
+      stat.value->setFontSize(statValueSize);
+      stat.value->setMaxWidth(textMax);
+      stat.value->setEllipsize(TextEllipsize::End);
+      stat.caption->setFontSize(captionSize);
+      stat.caption->setMaxWidth(textMax);
+      stat.caption->setEllipsize(TextEllipsize::End);
+      stat.row->setGap(iconGap);
+      stat.row->setMaxWidth(width);
+      stat.row->layout(renderer);
+      stat.row->setPosition(
+          columnX + (width - stat.row->width()) * 0.5F,
+          std::max(0.0F, (groupHeight - stat.row->height()) * 0.5F)
       );
+    };
+
+    if (showHeaderWifi) {
+      const NetworkState& network = m_network->state();
+      m_headerWifi.glyph->setGlyph(network_display::glyphForState(network));
+      m_headerWifi.value->setText(lockscreen_status_text::networkValueLabel(network));
+      m_headerWifi.caption->setText(lockscreen_status_text::networkCaptionLabel(network));
+      placeStat(m_headerWifi, wifiColumnX, wifiColumnWidth);
+    }
+
+    if (showHeaderNotifications) {
+      const bool dnd = m_notifications->doNotDisturb();
+      std::size_t unread = 0;
+      std::vector<std::string> iconPaths;
+      const int iconPx = static_cast<int>(std::round(captionSize * 1.4F));
+      const auto& history = m_notifications->history();
+      for (auto it = history.rbegin(); it != history.rend(); ++it) {
+        if (it->seen) {
+          continue;
+        }
+        ++unread;
+        if (iconPaths.size() >= m_headerNotificationIconImages.size()) {
+          continue;
+        }
+        // App identity only: notification images can carry message content (avatars, previews).
+        std::string name = it->notification.desktopEntry.value_or(it->notification.icon.value_or(""));
+        if (name.empty() || name.front() == '/' || name.starts_with("file:")) {
+          continue;
+        }
+        const std::string& path = m_iconResolver->resolve(name, iconPx);
+        if (!path.empty() && std::ranges::find(iconPaths, path) == iconPaths.end()) {
+          iconPaths.push_back(path);
+        }
+      }
+      m_headerNotifications.glyph->setGlyph(dnd ? "bell-off" : "bell");
+      m_headerNotifications.glyph->setColor(
+          colorSpecFromRole(unread > 0 && !dnd ? ColorRole::Primary : ColorRole::Secondary)
+      );
+      m_headerNotifications.value->setText(lockscreen_status_text::notificationCountLabel(unread, dnd));
+      const bool showIcons = !dnd && !iconPaths.empty();
+      m_headerNotifications.caption->setVisible(!showIcons && unread > 0 && !dnd);
+      m_headerNotifications.caption->setText(unread > 0 ? "Unread" : "");
+      m_headerNotificationIcons->setVisible(showIcons);
+      m_headerNotificationIcons->setGap(Style::spaceXs * contentScale);
+      for (std::size_t i = 0; i < m_headerNotificationIconImages.size(); ++i) {
+        Image* image = m_headerNotificationIconImages[i];
+        const bool used = showIcons && i < iconPaths.size();
+        image->setVisible(used);
+        if (!used) {
+          continue;
+        }
+        if (iconPaths[i] != m_headerNotificationIconPaths[i]) {
+          m_headerNotificationIconPaths[i] = iconPaths[i];
+          if (!image->setSourceFile(renderer, iconPaths[i], iconPx)) {
+            image->clear(renderer);
+          }
+        }
+        image->setSize(static_cast<float>(iconPx), static_cast<float>(iconPx));
+      }
+      placeStat(m_headerNotifications, notificationsColumnX, columnWidth);
+    }
+
+    if (showHeaderAudio) {
+      const int volume = static_cast<int>(std::lround(defaultSink->volume * 100.0F));
+      m_headerAudio.glyph->setGlyph(audioVolumeGlyph(defaultSink->volume, defaultSink->muted, false, defaultSink->headphones));
+      m_headerAudio.value->setText(std::format("{}%", volume));
+      m_headerAudio.caption->setText(defaultSink->muted ? "Muted" : (defaultSink->headphones ? "Headphones" : "Speakers"));
+      placeStat(m_headerAudio, audioColumnX, columnWidth);
     }
 
     m_headerCapsLock->setVisible(showCapsLock);
@@ -1772,21 +1898,6 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
       );
     }
 
-    {
-      // temporary: trace why header columns are missing; logs only on change
-      static std::string lastHeaderTrace;
-      const std::string trace = std::format(
-          "DEBUGHDR cols={} hw={:.0f} cw={:.0f} curW={:.0f} curH={:.0f} info={:.0f} user={} name='{}' batVis={} "
-          "batLblVis={} bat='{}' batX={:.0f} batW={:.0f} statusX={:.0f}",
-          headerColumns, headerWidth, columnWidth, m_weatherCurrent->width(), m_weatherCurrent->height(), rows.info,
-          showHeaderUser, m_user, m_loginBatteryRow->visible(), m_loginBatteryLabel->visible(),
-          m_loginBatteryLabel->text(), m_loginBatteryRow->x(), m_loginBatteryRow->width(), statusColumnX
-      );
-      if (trace != lastHeaderTrace) {
-        lastHeaderTrace = trace;
-        kLog.info("{}", trace);
-      }
-    }
     m_headerUser->setVisible(showHeaderUser);
     if (showHeaderUser) {
       const float avatarSize = kHeaderAvatarSize * contentScale;
@@ -2128,7 +2239,10 @@ void LockSurface::syncRegularExtras(Renderer& renderer) {
             m_loginBatteryGlyph->setGlyph(batteryGlyphName(battery.percentage, battery.state));
             m_loginBatteryLabel->setText(std::format("{}%", percent));
             m_loginBatteryLabel->setTooltip(batteryStateLabel(battery.state));
-            m_headerBatteryStatus->setText(batteryStateLabel(battery.state));
+            const bool charging = battery.state == BatteryState::Charging;
+            const std::string timeLabel =
+                lockscreen_status_text::batteryTimeLabel(charging ? battery.timeToFull : battery.timeToEmpty, charging);
+            m_headerBatteryStatus->setText(timeLabel.empty() ? batteryStateLabel(battery.state) : timeLabel);
           }
         }
       } else if (weatherReady) {

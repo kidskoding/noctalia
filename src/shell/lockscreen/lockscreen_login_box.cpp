@@ -320,6 +320,7 @@ namespace lockscreen_login_box {
     style.showWeather = readBool(settings, kShowWeatherKey, style.showWeather);
     style.showClock = readBool(settings, "show_clock", style.showClock);
     style.showTime = readBool(settings, "show_time", style.showTime);
+    style.showAudio = readBool(settings, "show_audio", style.showAudio);
     style.showBattery = readBool(settings, "show_battery", style.showBattery);
     style.showUser = readBool(settings, "show_user", style.showUser);
     style.showWifi = readBool(settings, "show_wifi", style.showWifi);

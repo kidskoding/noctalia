@@ -58,6 +58,7 @@ namespace lockscreen_login_box {
     bool showWeather = true;
     bool showClock = false;
     bool showTime = true;
+    bool showAudio = true;
     bool showBattery = false;
     bool showUser = false;
     bool showWifi = false;

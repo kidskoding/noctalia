@@ -44,6 +44,8 @@ class WeatherService;
 class UPowerService;
 class INetworkService;
 class NotificationManager;
+class PipeWireService;
+class IconResolver;
 struct KeyboardEvent;
 struct PointerEvent;
 struct SessionPanelActionConfig;
@@ -84,7 +86,8 @@ public:
   void setOnPasswordChanged(std::function<void(const std::string&)> onPasswordChanged);
   void setLoginBoxServices(
       SessionActionRunner* sessionActions, MprisService* mpris, const WeatherService* weather, HttpClient* httpClient, UPowerService* upower,
-      const INetworkService* network, const NotificationManager* notifications
+      const INetworkService* network, const NotificationManager* notifications,
+      const PipeWireService* audio
   );
   void selectAllPassword();
   void clearPasswordSelection();
@@ -181,9 +184,20 @@ private:
   Flex* m_headerBatteryText = nullptr;
   Label* m_headerBatteryStatus = nullptr;
   Flex* m_headerUser = nullptr;
-  Flex* m_headerStatusRow = nullptr;
-  Glyph* m_headerWifiGlyph = nullptr;
-  Glyph* m_headerBellGlyph = nullptr;
+  struct HeaderStat {
+    Flex* row = nullptr;
+    Glyph* glyph = nullptr;
+    Flex* text = nullptr;
+    Label* value = nullptr;
+    Label* caption = nullptr;
+  };
+  HeaderStat m_headerWifi;
+  HeaderStat m_headerNotifications;
+  HeaderStat m_headerAudio;
+  Flex* m_headerNotificationIcons = nullptr;
+  std::array<Image*, 3> m_headerNotificationIconImages{};
+  std::array<std::string, 3> m_headerNotificationIconPaths;
+  std::unique_ptr<IconResolver> m_iconResolver;
   Image* m_headerUserAvatar = nullptr;
   Label* m_headerUserName = nullptr;
   std::string m_headerUserAvatarPath;
@@ -273,6 +287,7 @@ private:
   UPowerService* m_upower = nullptr;
   const INetworkService* m_network = nullptr;
   const NotificationManager* m_notifications = nullptr;
+  const PipeWireService* m_audio = nullptr;
   std::unordered_set<std::string> m_pendingArtDownloads;
   std::shared_ptr<void> m_aliveGuard = std::make_shared<int>(0);
   std::string m_lastArtUrl;
