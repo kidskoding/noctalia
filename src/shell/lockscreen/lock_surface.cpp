@@ -1648,9 +1648,12 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
 
   const bool structuredHeader = regular && loginStyle.showClock && !showMedia;
   const bool showHeaderUser = structuredHeader && loginStyle.showUser;
-  const float headerWidth = std::min(contentWidth, (showHeaderUser ? 620.0F : 460.0F) * contentScale);
+  const bool showHeaderTime = loginStyle.showTime;
+  const float headerWidth =
+      std::min(contentWidth, (showHeaderUser && showHeaderTime ? 620.0F : 460.0F) * contentScale);
   if (m_weatherCurrent != nullptr) {
     m_loginClockRow->setParticipatesInLayout(!structuredHeader);
+    m_loginClockRow->setVisible(!structuredHeader || showHeaderTime);
     m_loginBatteryRow->setParticipatesInLayout(!structuredHeader);
     m_weatherCurrent->setMinWidth(structuredHeader ? headerWidth : 0.0F);
     m_weatherCurrent->setMaxWidth(structuredHeader ? headerWidth : 0.0F);
@@ -1664,10 +1667,10 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
     const float columnGap = Style::spaceLg * 1.5F * contentScale;
     const bool showCapsLock = loginStyle.showCapsLock && m_capsLock;
     const float groupHeight = rows.info - (showCapsLock ? headerWarningHeight : 0.0F);
-    const float columnCount = showHeaderUser ? 3.0F : 2.0F;
+    const float columnCount = 1.0F + (showHeaderUser ? 1.0F : 0.0F) + (showHeaderTime ? 1.0F : 0.0F);
     const float columnWidth = std::max(0.0F, (headerWidth - columnGap * (columnCount - 1.0F)) / columnCount);
     const float clockColumnX = showHeaderUser ? columnWidth + columnGap : 0.0F;
-    const float batteryColumnX = clockColumnX + columnWidth + columnGap;
+    const float batteryColumnX = showHeaderTime ? clockColumnX + columnWidth + columnGap : clockColumnX;
     const float iconSize = Style::fontSizeBody * contentScale;
     const float iconGap = Style::spaceSm * contentScale;
     const float textWidth = std::max(0.0F, columnWidth - iconSize - iconGap);
@@ -1677,13 +1680,15 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
     m_weatherMeta->setMaxWidth(textWidth);
     m_weatherTemp->setMaxWidth(textWidth);
     m_weatherTemp->setTextAlign(TextAlign::Center);
-    m_loginClockRow->setGap(iconGap);
-    m_loginClockRow->setMaxWidth(columnWidth);
-    m_loginClockRow->layout(renderer);
-    m_loginClockRow->setPosition(
-        clockColumnX + (columnWidth - m_loginClockRow->width()) * 0.5F,
-        std::max(0.0F, (groupHeight - m_loginClockRow->height()) * 0.5F)
-    );
+    if (showHeaderTime) {
+      m_loginClockRow->setGap(iconGap);
+      m_loginClockRow->setMaxWidth(columnWidth);
+      m_loginClockRow->layout(renderer);
+      m_loginClockRow->setPosition(
+          clockColumnX + (columnWidth - m_loginClockRow->width()) * 0.5F,
+          std::max(0.0F, (groupHeight - m_loginClockRow->height()) * 0.5F)
+      );
+    }
 
     m_loginBatteryLabel->setMaxWidth(textWidth);
     m_headerBatteryStatus->setMaxWidth(textWidth);

@@ -475,6 +475,10 @@ namespace desktop_settings {
       auto showWeather = boolSpec("show_weather", true);
       showWeather.visibleWhen = regularOnly;
       add(std::move(showWeather));
+      add(boolSpec("show_clock", false));
+      add(boolSpec("show_time", true));
+      add(boolSpec("show_battery", false));
+      add(boolSpec("show_user", false));
       add(boolSpec("show_login_button", true));
       add(boolSpec("show_password_reveal", true));
       add(boolSpec("show_unlock_hint", true));
