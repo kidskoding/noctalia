@@ -16,8 +16,8 @@ jobs:
   cache:
     strategy:
       matrix:
-        # the fork only feeds x86_64 laptops, so skip the arm build there
-        runner: ${{ github.repository == 'kidskoding/noctalia' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "ubuntu-24.04-arm"]') }}
+        # the fork only feeds x86_64 laptops, so no arm build
+        runner: [ubuntu-latest]
     runs-on: ${{ matrix.runner }}
     if: ${{ github.repository == 'noctalia-dev/noctalia' || github.repository == 'kidskoding/noctalia' }}
     steps:
