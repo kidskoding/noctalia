@@ -60,6 +60,8 @@ namespace lockscreen_login_box {
     bool showTime = true;
     bool showBattery = false;
     bool showUser = false;
+    bool showWifi = false;
+    bool showNotifications = false;
     bool showUnlockHint = true;
   };
 

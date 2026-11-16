@@ -35,6 +35,8 @@ class SystemBus;
 class WaylandConnection;
 class WeatherService;
 class UPowerService;
+class INetworkService;
+class NotificationManager;
 enum class LockscreenTransition : std::uint8_t;
 
 class LockScreen {
@@ -51,7 +53,8 @@ public:
       std::function<void()> onReadyForSleep
   );
   void setLoginBoxServices(
-      SessionActionRunner* sessionActions, MprisService* mpris, const WeatherService* weather, HttpClient* httpClient, UPowerService* upower
+      SessionActionRunner* sessionActions, MprisService* mpris, const WeatherService* weather, HttpClient* httpClient, UPowerService* upower,
+      const INetworkService* network, const NotificationManager* notifications
   );
   bool lock();
   void primeDesktopCaptures();
@@ -207,6 +210,8 @@ private:
   const WeatherService* m_weather = nullptr;
   HttpClient* m_httpClient = nullptr;
   UPowerService* m_upower = nullptr;
+  const INetworkService* m_network = nullptr;
+  const NotificationManager* m_notifications = nullptr;
   Timer m_suspendTimeoutTimer;
   Timer m_outputPowerOffTimer;
   // CLOCK_BOOTTIME millis when the lock flow started; grace expires gracePeriodSeconds after it.

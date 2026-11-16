@@ -5,9 +5,13 @@
 #include "core/ui_phase.h"
 #include "dbus/mpris/mpris_art.h"
 #include "dbus/mpris/mpris_service.h"
+#include "dbus/network/inetwork_service.h"
+#include "dbus/network/network_display.h"
+#include "dbus/network/network_types.h"
 #include "dbus/upower/upower_service.h"
 #include "ext-session-lock-v1-client-protocol.h"
 #include "i18n/i18n.h"
+#include "notification/notification_manager.h"
 #include "render/core/blur_cache.h"
 #include "render/core/render_styles.h"
 #include "render/core/shared_texture_cache.h"
@@ -439,6 +443,23 @@ LockSurface::LockSurface(WaylandConnection& connection, ConfigService* config) :
       .maxLines = 1,
       .textAlign = TextAlign::Center,
   }));
+  m_weatherCurrent->addChild(ui::row({
+      .out = &m_headerStatusRow,
+      .align = FlexAlign::Center,
+      .gap = Style::spaceMd,
+      .visible = false,
+      .participatesInLayout = false,
+  }, ui::glyph({
+      .out = &m_headerWifiGlyph,
+      .glyph = "wifi-off",
+      .glyphSize = Style::baseGlyphSize,
+      .color = colorSpecFromRole(ColorRole::OnSurface),
+  }), ui::glyph({
+      .out = &m_headerBellGlyph,
+      .glyph = "bell",
+      .glyphSize = Style::baseGlyphSize,
+      .color = colorSpecFromRole(ColorRole::OnSurface),
+  })));
 
   m_weatherBlock->addChild(
       ui::flex(
@@ -686,13 +707,16 @@ LockSurface::~LockSurface() {
 }
 
 void LockSurface::setLoginBoxServices(
-    SessionActionRunner* sessionActions, MprisService* mpris, const WeatherService* weather, HttpClient* httpClient, UPowerService* upower
+    SessionActionRunner* sessionActions, MprisService* mpris, const WeatherService* weather, HttpClient* httpClient, UPowerService* upower,
+    const INetworkService* network, const NotificationManager* notifications
 ) {
   m_sessionActions = sessionActions;
   m_mpris = mpris;
   m_weather = weather;
   m_httpClient = httpClient;
   m_upower = upower;
+  m_network = network;
+  m_notifications = notifications;
   rebuildSessionButtons();
   requestUpdate();
 }
@@ -1649,12 +1673,20 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
   const bool structuredHeader = regular && loginStyle.showClock && !showMedia;
   const bool showHeaderUser = structuredHeader && loginStyle.showUser;
   const bool showHeaderTime = loginStyle.showTime;
-  const float headerWidth =
-      std::min(contentWidth, (showHeaderUser && showHeaderTime ? 620.0F : 460.0F) * contentScale);
+  const bool showHeaderWifi = structuredHeader && loginStyle.showWifi && m_network != nullptr;
+  // shortcut: the bell is read on each lock redraw (clock tick at the latest), not pushed; hook the manager's state callback if it must be instant
+  const bool notificationsDnd = m_notifications != nullptr && m_notifications->doNotDisturb();
+  const bool notificationsUnread = m_notifications != nullptr && m_notifications->hasUnreadNotificationHistory();
+  const bool showHeaderBell = structuredHeader && loginStyle.showNotifications && (notificationsUnread || notificationsDnd);
+  const bool showHeaderStatus = showHeaderWifi || showHeaderBell;
+  const int headerColumns = 1 + (showHeaderUser ? 1 : 0) + (showHeaderTime ? 1 : 0) + (showHeaderStatus ? 1 : 0);
+  const float headerBaseWidth = headerColumns >= 4 ? 760.0F : (headerColumns == 3 ? 620.0F : 460.0F);
+  const float headerWidth = std::min(contentWidth, headerBaseWidth * contentScale);
   if (m_weatherCurrent != nullptr) {
     m_loginClockRow->setParticipatesInLayout(!structuredHeader);
     m_loginClockRow->setVisible(!structuredHeader || showHeaderTime);
     m_loginBatteryRow->setParticipatesInLayout(!structuredHeader);
+    m_headerStatusRow->setVisible(showHeaderStatus);
     m_weatherCurrent->setMinWidth(structuredHeader ? headerWidth : 0.0F);
     m_weatherCurrent->setMaxWidth(structuredHeader ? headerWidth : 0.0F);
     m_weatherCurrent->setMinHeight(structuredHeader ? rows.info : 0.0F);
@@ -1667,10 +1699,11 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
     const float columnGap = Style::spaceLg * 1.5F * contentScale;
     const bool showCapsLock = loginStyle.showCapsLock && m_capsLock;
     const float groupHeight = rows.info - (showCapsLock ? headerWarningHeight : 0.0F);
-    const float columnCount = 1.0F + (showHeaderUser ? 1.0F : 0.0F) + (showHeaderTime ? 1.0F : 0.0F);
+    const float columnCount = static_cast<float>(headerColumns);
     const float columnWidth = std::max(0.0F, (headerWidth - columnGap * (columnCount - 1.0F)) / columnCount);
     const float clockColumnX = showHeaderUser ? columnWidth + columnGap : 0.0F;
-    const float batteryColumnX = showHeaderTime ? clockColumnX + columnWidth + columnGap : clockColumnX;
+    const float statusColumnX = showHeaderTime ? clockColumnX + columnWidth + columnGap : clockColumnX;
+    const float batteryColumnX = showHeaderStatus ? statusColumnX + columnWidth + columnGap : statusColumnX;
     const float iconSize = Style::fontSizeBody * contentScale;
     const float iconGap = Style::spaceSm * contentScale;
     const float textWidth = std::max(0.0F, columnWidth - iconSize - iconGap);
@@ -1700,6 +1733,29 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
         batteryColumnX + (columnWidth - m_loginBatteryRow->width()) * 0.5F,
         std::max(0.0F, (groupHeight - m_loginBatteryRow->height()) * 0.5F)
     );
+
+    if (showHeaderStatus) {
+      m_headerWifiGlyph->setVisible(showHeaderWifi);
+      if (showHeaderWifi) {
+        m_headerWifiGlyph->setGlyph(network_display::glyphForState(m_network->state()));
+        m_headerWifiGlyph->setGlyphSize(iconSize);
+      }
+      m_headerBellGlyph->setVisible(showHeaderBell);
+      if (showHeaderBell) {
+        m_headerBellGlyph->setGlyph(notificationsDnd ? "bell-off" : "bell");
+        m_headerBellGlyph->setColor(colorSpecFromRole(
+            notificationsUnread && !notificationsDnd ? ColorRole::Primary : ColorRole::OnSurfaceVariant
+        ));
+        m_headerBellGlyph->setGlyphSize(iconSize);
+      }
+      m_headerStatusRow->setGap(Style::spaceMd * contentScale);
+      m_headerStatusRow->setMaxWidth(columnWidth);
+      m_headerStatusRow->layout(renderer);
+      m_headerStatusRow->setPosition(
+          statusColumnX + (columnWidth - m_headerStatusRow->width()) * 0.5F,
+          std::max(0.0F, (groupHeight - m_headerStatusRow->height()) * 0.5F)
+      );
+    }
 
     m_headerCapsLock->setVisible(showCapsLock);
     if (showCapsLock) {

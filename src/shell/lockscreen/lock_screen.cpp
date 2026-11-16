@@ -147,16 +147,19 @@ void LockScreen::setSessionHooks(
 }
 
 void LockScreen::setLoginBoxServices(
-    SessionActionRunner* sessionActions, MprisService* mpris, const WeatherService* weather, HttpClient* httpClient, UPowerService* upower
+    SessionActionRunner* sessionActions, MprisService* mpris, const WeatherService* weather, HttpClient* httpClient, UPowerService* upower,
+    const INetworkService* network, const NotificationManager* notifications
 ) {
   m_sessionActions = sessionActions;
   m_mpris = mpris;
   m_weather = weather;
   m_httpClient = httpClient;
   m_upower = upower;
+  m_network = network;
+  m_notifications = notifications;
   for (auto& instance : m_instances) {
     if (instance.surface != nullptr) {
-      instance.surface->setLoginBoxServices(m_sessionActions, m_mpris, m_weather, m_httpClient, m_upower);
+      instance.surface->setLoginBoxServices(m_sessionActions, m_mpris, m_weather, m_httpClient, m_upower, m_network, m_notifications);
     }
   }
 }
@@ -1319,7 +1322,7 @@ void LockScreen::createInstance(const WaylandOutput& output) {
   surface->setOnLogin([this] { tryAuthenticate(); });
   surface->setOnCycleLayout([this] { cycleKeyboardLayout(); });
   surface->setOnPasswordChanged([this](const std::string& value) { handlePasswordEdited(value); });
-  surface->setLoginBoxServices(m_sessionActions, m_mpris, m_weather, m_httpClient, m_upower);
+  surface->setLoginBoxServices(m_sessionActions, m_mpris, m_weather, m_httpClient, m_upower, m_network, m_notifications);
   surface->setPromptState(m_user, m_password, m_status, m_statusIsError, m_authenticating);
   applyIndicatorsToSurface(*surface);
 

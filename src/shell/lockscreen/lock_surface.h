@@ -42,6 +42,8 @@ class SessionActionRunner;
 class WallpaperNode;
 class WeatherService;
 class UPowerService;
+class INetworkService;
+class NotificationManager;
 struct KeyboardEvent;
 struct PointerEvent;
 struct SessionPanelActionConfig;
@@ -81,7 +83,8 @@ public:
   void setOnCycleLayout(std::function<void()> onCycleLayout);
   void setOnPasswordChanged(std::function<void(const std::string&)> onPasswordChanged);
   void setLoginBoxServices(
-      SessionActionRunner* sessionActions, MprisService* mpris, const WeatherService* weather, HttpClient* httpClient, UPowerService* upower
+      SessionActionRunner* sessionActions, MprisService* mpris, const WeatherService* weather, HttpClient* httpClient, UPowerService* upower,
+      const INetworkService* network, const NotificationManager* notifications
   );
   void selectAllPassword();
   void clearPasswordSelection();
@@ -178,6 +181,9 @@ private:
   Flex* m_headerBatteryText = nullptr;
   Label* m_headerBatteryStatus = nullptr;
   Flex* m_headerUser = nullptr;
+  Flex* m_headerStatusRow = nullptr;
+  Glyph* m_headerWifiGlyph = nullptr;
+  Glyph* m_headerBellGlyph = nullptr;
   Image* m_headerUserAvatar = nullptr;
   Label* m_headerUserName = nullptr;
   std::string m_headerUserAvatarPath;
@@ -265,6 +271,8 @@ private:
   const WeatherService* m_weather = nullptr;
   HttpClient* m_httpClient = nullptr;
   UPowerService* m_upower = nullptr;
+  const INetworkService* m_network = nullptr;
+  const NotificationManager* m_notifications = nullptr;
   std::unordered_set<std::string> m_pendingArtDownloads;
   std::shared_ptr<void> m_aliveGuard = std::make_shared<int>(0);
   std::string m_lastArtUrl;

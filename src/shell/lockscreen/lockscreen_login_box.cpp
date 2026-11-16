@@ -322,6 +322,8 @@ namespace lockscreen_login_box {
     style.showTime = readBool(settings, "show_time", style.showTime);
     style.showBattery = readBool(settings, "show_battery", style.showBattery);
     style.showUser = readBool(settings, "show_user", style.showUser);
+    style.showWifi = readBool(settings, "show_wifi", style.showWifi);
+    style.showNotifications = readBool(settings, "show_notifications", style.showNotifications);
     style.showUnlockHint = readBool(settings, kShowUnlockHintKey, style.showUnlockHint);
     return style;
   }

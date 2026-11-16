@@ -1344,6 +1344,9 @@ void Application::initSystemBusServices() {
             }
             m_externalIpService.onNetworkChanged();
             m_bar.refresh();
+            if (m_lockScreen.isActive()) {
+              m_lockScreen.requestUpdate();
+            }
             if (shouldRefreshControlCenter()) {
               m_panelManager.refresh();
             }
@@ -1656,12 +1659,14 @@ void Application::initSessionBusServices() {
           m_panelManager.refresh();
         }
       });
-      m_lockScreen.setLoginBoxServices(&m_sessionActionRunner, m_mprisService.get(), &m_weatherService, &m_httpClient, m_upowerService.get());
+      m_lockScreen.setLoginBoxServices(&m_sessionActionRunner, m_mprisService.get(), &m_weatherService, &m_httpClient, m_upowerService.get(),
+          m_networkService.get(), &m_notificationManager);
       kLog.info("mpris discovery active");
     } catch (const std::exception& e) {
       kLog.warn("mpris disabled: {}", e.what());
       m_mprisService.reset();
-      m_lockScreen.setLoginBoxServices(&m_sessionActionRunner, nullptr, &m_weatherService, &m_httpClient, m_upowerService.get());
+      m_lockScreen.setLoginBoxServices(&m_sessionActionRunner, nullptr, &m_weatherService, &m_httpClient, m_upowerService.get(),
+          m_networkService.get(), &m_notificationManager);
       m_notificationManager.addInternal(
           "Noctalia", i18n::tr("notifications.internal.mpris-disabled"), e.what(), Urgency::Low
       );
