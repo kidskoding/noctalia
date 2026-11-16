@@ -18,7 +18,7 @@ jobs:
       matrix:
         runner: [ubuntu-latest, ubuntu-24.04-arm]
     runs-on: ${{ matrix.runner }}
-    if: ${{ github.repository == 'noctalia-dev/noctalia' }}
+    if: ${{ github.repository == 'noctalia-dev/noctalia' || github.repository == 'kidskoding/noctalia' }}
     steps:
       - uses: actions/checkout@v6
       - uses: cachix/install-nix-action@v31
@@ -26,7 +26,17 @@ jobs:
         with:
           name: "${{ secrets.CACHIX_CACHE_NAME }}"
           authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
-      - run: nix build .#default --fallback
+      - name: build
+        run: |
+          if [ "$GITHUB_REPOSITORY" = "kidskoding/noctalia" ]; then
+            # nixos-config builds noctalia with inputs.nixpkgs.follows; build it the same way so the cache hits
+            rev=$(curl -sf https://codeberg.org/kidskoding/nixos-config/raw/branch/master/flake.lock | jq -r '.nodes[.nodes.root.inputs.nixpkgs].locked.rev')
+            mkdir -p "$RUNNER_TEMP/wrap"
+            printf '{\n  inputs.nixpkgs.url = "github:NixOS/nixpkgs/%s";\n  inputs.noctalia.url = "github:%s/%s";\n  inputs.noctalia.inputs.nixpkgs.follows = "nixpkgs";\n  outputs = {noctalia, ...}: {packages = noctalia.packages;};\n}\n' "$rev" "$GITHUB_REPOSITORY" "$GITHUB_SHA" > "$RUNNER_TEMP/wrap/flake.nix"
+            nix build "path:$RUNNER_TEMP/wrap#packages.$(nix eval --impure --raw --expr builtins.currentSystem).default" --fallback
+          else
+            nix build .#default --fallback
+          fi
 
   push:
     needs: cache
