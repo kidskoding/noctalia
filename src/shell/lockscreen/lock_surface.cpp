@@ -1815,8 +1815,21 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
       );
     };
 
+    // match the bar widgets' icon colors so the lock card reads the same as the bar
+    const auto barWidgetColor = [this](const char* widget, const char* key, ColorRole fallback) {
+      ColorSpec color = colorSpecFromRole(fallback);
+      if (m_config != nullptr) {
+        const auto& widgets = m_config->config().widgets;
+        if (const auto it = widgets.find(widget); it != widgets.end()) {
+          color = it->second.getColorSpec(key, color, std::format("widget.{}.{}", widget, key));
+        }
+      }
+      return color;
+    };
+
     if (showHeaderWifi) {
       const NetworkState& network = m_network->state();
+      m_headerWifi.glyph->setColor(barWidgetColor("network", "icon_color", ColorRole::Secondary));
       m_headerWifi.glyph->setGlyph(network_display::glyphForState(network));
       m_headerWifi.value->setText(lockscreen_status_text::networkValueLabel(network));
       m_headerWifi.caption->setText(lockscreen_status_text::networkCaptionLabel(network));
@@ -1878,6 +1891,10 @@ void LockSurface::layoutScene(std::uint32_t width, std::uint32_t height) {
     if (showHeaderAudio) {
       const int volume = static_cast<int>(std::lround(defaultSink->volume * 100.0F));
       m_headerAudio.glyph->setGlyph(audioVolumeGlyph(defaultSink->volume, defaultSink->muted, false, defaultSink->headphones));
+      m_headerAudio.glyph->setColor(
+          defaultSink->muted ? barWidgetColor("volume", "mute_color", ColorRole::Error)
+                             : barWidgetColor("volume", "icon_color", ColorRole::Secondary)
+      );
       m_headerAudio.value->setText(std::format("{}%", volume));
       m_headerAudio.caption->setText(defaultSink->muted ? "Muted" : (defaultSink->headphones ? "Headphones" : "Speakers"));
       placeStat(m_headerAudio, audioColumnX, columnWidth);
